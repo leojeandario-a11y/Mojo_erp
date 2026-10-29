@@ -1,0 +1,56 @@
+import { redirect } from "next/navigation";
+import { FinanceManager } from "@/components/finance-manager";
+import { TransactionsManager } from "@/components/transactions-manager";
+import { CashSessionsManager } from "@/components/cash-sessions-manager";
+import { AccountTransfersManager } from "@/components/account-transfers-manager";
+import { FinanceCategoriesManager } from "@/components/finance-categories-manager";
+import { FinanceBudgetsManager } from "@/components/finance-budgets-manager";
+import { FinanceOperationsManager } from "@/components/finance-operations-manager";
+import { getSession, hasPermission } from "@/lib/auth";
+import { translate } from "@/lib/i18n";
+import { hasAnyPermission } from "@/lib/permissions";
+
+export default async function FinancePage() {
+  const user = await getSession();
+  if (!user) redirect("/login");
+  const canReadAccounts = hasAnyPermission(user, ["finance.transaction.read", "finance.transaction.create", "finance.account.manage"]);
+  const canManageAccounts = hasAnyPermission(user, ["finance.account.manage"]);
+  const canReadBudgets = hasAnyPermission(user, ["finance.budget.read", "finance.budget.manage"]);
+  const canManageBudgets = hasAnyPermission(user, ["finance.budget.manage"]);
+  const canManageRates = hasPermission(user, "finance.rate.manage");
+  const canAccessTransactions = hasAnyPermission(user, [
+    "finance.transaction.read",
+    "finance.transaction.create",
+    "finance.transaction.validate",
+    "finance.transaction.reverse",
+  ]);
+  const canCreateTransactions = hasAnyPermission(user, ["finance.transaction.create"]);
+  if (!canReadAccounts && !canManageRates && !canAccessTransactions && !canReadBudgets) redirect("/forbidden");
+
+  return (
+    <div className="admin-page">
+      <div className="page-heading">
+        <div>
+          <span className="eyebrow">{translate(user.locale, "finance").toUpperCase()}</span>
+          <h1>{translate(user.locale, "financeManagement")}<span className="heading-period">.</span></h1>
+          <p>{translate(user.locale, "financeManagementDescription")}</p>
+        </div>
+      </div>
+      <FinanceManager locale={user.locale} canReadAccounts={canReadAccounts} canManageRates={canManageRates} />
+      <FinanceBudgetsManager locale={user.locale} canRead={canReadBudgets} canManage={canManageBudgets} />
+      <FinanceCategoriesManager locale={user.locale} canManage={canManageAccounts} />
+      <CashSessionsManager
+        locale={user.locale}
+        canAccess={canReadAccounts || canAccessTransactions}
+        canManage={canCreateTransactions}
+      />
+      <AccountTransfersManager locale={user.locale} canManage={canCreateTransactions} />
+      <TransactionsManager locale={user.locale} canAccess={canAccessTransactions} canCreate={canCreateTransactions} />
+      <FinanceOperationsManager
+        locale={user.locale}
+        canAccess={canAccessTransactions}
+        canCreate={canCreateTransactions}
+      />
+    </div>
+  );
+}
