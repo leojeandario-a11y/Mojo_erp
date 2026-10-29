@@ -98,7 +98,7 @@ export default async function DashboardPage({
   });
   const text = (key: Parameters<typeof translate>[1]) => translate(user.locale, key);
   const locale = user.locale === "ht" ? "ht-HT" : user.locale === "en" ? "en-US" : "fr-FR";
-  const projectProgressUpdatedAt = new Date("2026-10-26T12:00:00Z");
+  const projectProgressUpdatedAt = new Date("2026-10-29T12:00:00Z");
   const projectProgressDate = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeZone: "UTC",
@@ -148,7 +148,7 @@ export default async function DashboardPage({
             <h2>{text("quickStart")}</h2>
             <p>{text("quickStartText")}</p>
             <div className="foundation-progress"><b>{text("currentProjectStage")}</b><small>{text("inProgress")}</small></div>
-            <p className="project-progress-date"><span>{text("lastProjectUpdate")}:</span> <time dateTime="2026-10-26">{projectProgressDate}</time></p>
+            <p className="project-progress-date"><span>{text("lastProjectUpdate")}:</span> <time dateTime="2026-10-29">{projectProgressDate}</time></p>
           </div>
         </div>
         <aside className="panel workspace-panel">
