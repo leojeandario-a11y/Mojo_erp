@@ -211,7 +211,7 @@ export async function GET(request: Request) {
       };
     });
     if ("kind" in data && data.kind === "csv") return data.response;
-    return NextResponse.json(data);
+    return NextResponse.json({ transactions: data.transactions });
   } catch (error) {
     console.error("Unable to load finance transactions.", error);
     return NextResponse.json({ error: "Unable to load finance transactions." }, { status: 500 });
