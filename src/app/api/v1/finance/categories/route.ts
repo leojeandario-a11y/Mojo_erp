@@ -9,6 +9,7 @@ const categorySchema = z.object({
   code: z.string().trim().min(2).max(40).regex(/^[A-Za-z0-9_-]+$/),
   name: z.string().trim().min(2).max(120),
   kind: z.enum(["income", "expense"]),
+  parentId: z.uuid().nullable().optional(),
 }).strict();
 
 class CategoryPolicyError extends Error {
@@ -30,10 +31,12 @@ export async function GET(request: Request) {
   try {
     const result = await withDbUser(actor.id, requestIp(request.headers), async (client) => {
       const categories = await client.query(
-        `SELECT id, entity_id, code, name, kind, is_active
-         FROM transaction_categories
-         WHERE is_active
-         ORDER BY kind, name`,
+        `SELECT category.id, category.entity_id, category.code, category.name,
+          category.kind, category.parent_id, parent.name AS parent_name, category.is_active
+         FROM transaction_categories category
+         LEFT JOIN transaction_categories parent ON parent.id = category.parent_id
+         WHERE category.is_active
+         ORDER BY category.kind, parent.name NULLS FIRST, category.name`,
       );
       return categories.rows.filter((category) => category.entity_id === null
         || hasEntityPermission(actor, "finance.transaction.read", category.entity_id)
@@ -64,11 +67,22 @@ export async function POST(request: Request) {
       if (!permission.rows[0]?.allowed) {
         throw new CategoryPolicyError("Permission denied for this entity.", 403);
       }
+      if (parsed.data.parentId) {
+        const parent = await client.query<{ entity_id: string | null; kind: string; is_active: boolean }>(
+          "SELECT entity_id, kind, is_active FROM transaction_categories WHERE id = $1",
+          [parsed.data.parentId],
+        );
+        if (!parent.rowCount || !parent.rows[0].is_active
+            || parent.rows[0].entity_id !== parsed.data.entityId
+            || parent.rows[0].kind !== parsed.data.kind) {
+          throw new CategoryPolicyError("Parent category must be active and match the entity and transaction type.", 400);
+        }
+      }
       const result = await client.query<{ id: string }>(
-        `INSERT INTO transaction_categories(entity_id, code, name, kind)
-         VALUES ($1, upper($2), $3, $4)
+        `INSERT INTO transaction_categories(entity_id, code, name, kind, parent_id)
+         VALUES ($1, upper($2), $3, $4, $5)
          RETURNING id`,
-        [parsed.data.entityId, parsed.data.code, parsed.data.name, parsed.data.kind],
+        [parsed.data.entityId, parsed.data.code, parsed.data.name, parsed.data.kind, parsed.data.parentId ?? null],
       );
       return result.rows[0].id;
     });

@@ -101,6 +101,10 @@ export function TransactionsManager({
     category.kind === transactionType
     && (category.entity_id === null || category.entity_id === selectedAccount?.entity_id),
   );
+  const quickExpenseCategories = categories.filter((category) =>
+    category.kind === "expense"
+    && (category.entity_id === null || category.entity_id === selectedAccount?.entity_id),
+  );
 
   const loadTransactions = useCallback(async () => {
     const query = transactionQuery(appliedFilters);
@@ -289,7 +293,29 @@ export function TransactionsManager({
       {canCreate ? (
         accountsLoading ? <p className="muted">{text("loading")}</p> : accountError ? <p className="form-error" role="alert">{accountError}</p>
           : accounts.length ? (
-            <form className="stack-form transaction-form" onSubmit={createTransaction}>
+            <>
+              <details className="mobile-quick-expense">
+                <summary>{text("quickExpense")}</summary>
+                <form className="stack-form transaction-form" onSubmit={createTransaction}>
+                  <input type="hidden" name="type" value="expense" />
+                  <label>{text("transactionAccount")}<select value={accountId} onChange={(event) => setAccountId(event.target.value)} required>
+                    {accounts.map((account) => <option key={account.id} value={account.id}>
+                      {account.entity_name} · {account.name} ({account.currency})
+                    </option>)}
+                  </select></label>
+                  <label>{text("financeCategories")}<select key={`${selectedAccount?.entity_id}-quick-expense`} name="categoryId" defaultValue="">
+                    <option value="">{quickExpenseCategories.length ? text("selectCategory") : text("noCategories")}</option>
+                    {quickExpenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                  </select></label>
+                  <label>{text("transactionDate")}<input name="date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
+                  <label>{text("amount")}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
+                  <label>{text("description")}<textarea name="description" maxLength={1000} rows={2} /></label>
+                  <button className="button button-primary" type="submit" disabled={!selectedAccount || saving}>
+                    {saving ? text("saving") : text("createTransaction")}
+                  </button>
+                </form>
+              </details>
+              <form className="stack-form transaction-form" onSubmit={createTransaction}>
               <label>{text("transactionAccount")}<select value={accountId} onChange={(event) => setAccountId(event.target.value)} required>
                 {accounts.map((account) => <option key={account.id} value={account.id}>
                   {account.entity_name} · {account.name} ({account.currency})
@@ -313,7 +339,8 @@ export function TransactionsManager({
               <button className="button button-primary" type="submit" disabled={!selectedAccount || saving}>
                 {saving ? text("saving") : text("createTransaction")}
               </button>
-            </form>
+              </form>
+            </>
           ) : <p className="empty-state">{text("noActiveAccounts")}</p>
       ) : null}
       {canAccess && (

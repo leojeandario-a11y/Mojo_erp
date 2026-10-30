@@ -15,6 +15,8 @@ interface FinanceCategory {
   code: string;
   name: string;
   kind: "income" | "expense";
+  parent_id: string | null;
+  parent_name: string | null;
   is_active: boolean;
 }
 
@@ -31,6 +33,7 @@ export function FinanceCategoriesManager({
   const [entities, setEntities] = useState<FinanceEntity[]>([]);
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [entityId, setEntityId] = useState("");
+  const [categoryKind, setCategoryKind] = useState<"income" | "expense">("expense");
   const [loading, setLoading] = useState(canManage);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -139,7 +142,7 @@ export function FinanceCategoriesManager({
               <thead><tr><th>{text("name")}</th><th>{text("entity")}</th><th>{text("transactionType")}</th><th /></tr></thead>
               <tbody>{categories.map((category) => (
                 <tr key={category.id}>
-                  <td><strong>{category.name}</strong><span className="table-sub">{category.code}</span></td>
+                          <td><strong>{category.name}</strong><span className="table-sub">{category.parent_name ? `${text("parentCategory")}: ${category.parent_name}` : category.code}</span></td>
                   <td>{entities.find((entity) => entity.id === category.entity_id)?.name ?? "—"}</td>
                   <td>{text(category.kind === "income" ? "transactionIncome" : "transactionExpense")}</td>
                   <td><button className="table-action" type="button" onClick={() => void deactivateCategory(category)}>{text("deactivateCategory")}</button></td>
@@ -154,9 +157,15 @@ export function FinanceCategoriesManager({
               </select></label>
               <label>{text("categoryCode")}<input name="code" required minLength={2} maxLength={40} pattern="(?:[A-Za-z0-9_]|-)+" /></label>
               <label>{text("name")}<input name="name" required minLength={2} maxLength={120} /></label>
-              <label>{text("transactionType")}<select name="kind" defaultValue="expense">
+              <label>{text("transactionType")}<select name="kind" defaultValue="expense" onChange={(event) => setCategoryKind(event.target.value === "income" ? "income" : "expense")}>
                 <option value="expense">{text("transactionExpense")}</option>
                 <option value="income">{text("transactionIncome")}</option>
+              </select></label>
+              <label>{text("parentCategory")}<select key={`${entityId}-${categoryKind}`} name="parentId" defaultValue="">
+                <option value="">{text("noParentCategory")}</option>
+                {categories.filter((category) => category.entity_id === entityId && category.kind === categoryKind).map((category) => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
               </select></label>
               <button className="button button-primary" type="submit" disabled={saving || !entityId}>
                 {saving ? text("saving") : text("createCategory")}
