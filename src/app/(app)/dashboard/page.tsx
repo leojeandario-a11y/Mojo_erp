@@ -98,7 +98,7 @@ export default async function DashboardPage({
   });
   const text = (key: Parameters<typeof translate>[1]) => translate(user.locale, key);
   const locale = user.locale === "ht" ? "ht-HT" : user.locale === "en" ? "en-US" : "fr-FR";
-  const projectProgressUpdatedAt = new Date("2026-10-30T12:00:00Z");
+  const projectProgressUpdatedAt = new Date("2026-10-30T18:00:00Z");
   const projectProgressDate = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeZone: "UTC",
