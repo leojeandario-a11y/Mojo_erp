@@ -1,0 +1,1224 @@
+=== PAGE 1 ===
+MoJo ERP
+Feuille de route détaillée
+des étapes après le Lot 1
+Plateforme intégrée de gestion pour MoJoPIKtures
+Suivi pas à pas : ce qui est fait, ce qui vient, avec qui reprendre.
+Document établi le 22 octobre 2026
+17 lots de travail, du Lot 1 (livré) au Lot 17 (mise en production)
+
+
+=== PAGE 2 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 2
+1. Comment utiliser ce document
+Ce document est votre carnet de route. Il liste, dans l'ordre, tous les lots à réaliser après le Lot 1.
+Chaque lot est un petit ensemble cohérent, livré dans un fichier zip, que vous testez avant de passer
+au suivant. On n'avance jamais au lot suivant sans votre validation.
+Pour chaque lot, vous trouvez :
+ •  l'objectif et les prérequis ;
+ •  la liste numérotée des étapes (cases à cocher) ;
+ •  les règles métier à respecter ;
+ •  les livrables attendus ;
+ •  les critères de validation : ce que vous devez vérifier avant d'accepter le lot ;
+ •  les décisions que vous devez prendre, avec les valeurs que je propose par défaut.
+ 
+Les trois statuts :
+ LIVRÉ
+Livré, testé et remis dans un zip.
+ EN COURS
+Commencé, mais pas encore livré. Les parties déjà faites sont indiquées.
+ À FAIRE
+Pas encore commencé.
+Important. Les lots 2 à 17 sont une planification. Les contenus pourront être ajustés selon vos
+décisions et ce que nous découvrirons en testant. Chaque ajustement sera noté ici dans le journal
+d'avancement (annexe B).
+
+
+=== PAGE 3 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 3
+2. Tableau de suivi global
+Vue d'ensemble des 17 lots. Mettez à jour la colonne « Validé par vous » à la fin de chacun.
+Lot
+Contenu
+Phase / sprint
+Statut
+Validé par vous
+1
+Conception complète et base de
+données
+Sprint 0
+LIVRÉ
+☐ Oui   Date : ______
+2
+Socle applicatif et authentification
+Phase 1 (Foundation),
+partie A · Sprint 1
+EN COURS
+☐ Oui   Date : ______
+3
+Utilisateurs, rôles, directions, audit
+et dashboard de base
+Phase 1 (Foundation),
+partie B · Sprint 2
+À FAIRE
+☐ Oui   Date : ______
+4
+Finance : taux, comptes, caisse et
+transactions
+Phase 2 (Finance), partie
+A · Sprint 3
+À FAIRE
+☐ Oui   Date : ______
+5
+Finance : budgets, moteur
+d'approbation et notifications
+Phase 2 (Finance), partie
+B · Sprint 4
+À FAIRE
+☐ Oui   Date : ______
+6
+Finance : Fonds d'Urgence et
+rapports financiers
+Phase 2 (Finance), partie
+C · Sprint 5
+À FAIRE
+☐ Oui   Date : ______
+7
+Ressources humaines : employés,
+présences, congés, documents
+Phase 3 (Administration
+et RH), partie A · Sprint 6
+À FAIRE
+☐ Oui   Date : ______
+8
+Ressources humaines : paie,
+formations, recrutement, départs
+Phase 3 (Administration
+et RH), partie B · Sprint 7
+À FAIRE
+☐ Oui   Date : ______
+9
+Affaires : clients, prospects,
+pipeline et opportunités
+Phase 4 (Affaires), partie
+A · Sprint 8
+À FAIRE
+☐ Oui   Date : ______
+10
+Affaires : contrats, partenaires,
+facturation et encaissements
+Phase 4 (Affaires), partie
+B · Sprint 9
+À FAIRE
+☐ Oui   Date : ______
+11
+Marketing : campagnes, contenu
+et performance
+Phase 5 (Marketing) ·
+Sprint 10
+À FAIRE
+☐ Oui   Date : ______
+12
+Opérations et projets
+Phase 6 (Opérations) ·
+Sprint 11
+À FAIRE
+☐ Oui   Date : ______
+13
+MOJO Store : produits, stock et
+inventaire
+Phase 7 (MOJO Store),
+partie A · Sprint 12
+À FAIRE
+☐ Oui   Date : ______
+14
+MOJO Store : POS, ventes et
+finance propre du Store
+Phase 7 (MOJO Store),
+partie B · Sprint 13
+À FAIRE
+☐ Oui   Date : ______
+15
+MOJO Store : exposants,
+commissions et rapports
+Phase 7 (MOJO Store),
+partie C · Sprint 14
+À FAIRE
+☐ Oui   Date : ______
+16
+Rapports et analytique
+Phase 8 · Sprints 15 et
+16
+À FAIRE
+☐ Oui   Date : ______
+17
+Sécurité, tests complets et mise
+en production
+Phase 9 · Sprints 17 et
+18
+À FAIRE
+☐ Oui   Date : ______
+Où en sommes-nous exactement ?
+Le Lot 1 est livré (mojo-erp-lot1.zip). Le Lot 2 est commencé : la migration 010, le projet Next.js et
+ses dépendances sont prêts, mais le code de l'application n'est pas encore écrit ni testé, donc rien
+n'est livré pour ce lot. La prochaine action est de terminer le Lot 2.
+
+
+=== PAGE 4 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 4
+LOT 1
+Conception complète et base de données
+ LIVRÉ
+Sprint 0
+Objectif. Poser les fondations : architecture, modèle de données validé sur un vrai PostgreSQL,
+scripts d'installation.
+Ce qui a été livré
+ ✓  10 livrables de conception (architecture, ERD, tables, permissions, workflows, arborescence,
+ écrans, wireframes, règles du Fonds d'Urgence, sprints).
+✓  9 migrations SQL : 84 tables, 5 vues, 13 rôles, 58 permissions, workflows d'approbation initiaux.
+ ✓  Garanties testées côté base : transactions validées immuables, audit en ajout seul, salaires
+ protégés par RLS, USD calculé automatiquement.
+✓  Scripts : migration rejouable, création du Super Administrator, sauvegarde, restauration. Docker
+ Compose (base, migrations, sauvegarde).
+✓  Fichier livré : mojo-erp-lot1.zip.
+ 
+
+=== PAGE 5 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 5
+LOT 2
+Socle applicatif et authentification
+ EN COURS
+Phase 1 (Foundation), partie A · Sprint 1
+Objectif. Obtenir une application Next.js qui démarre, se connecte à la base avec le rôle restreint
+mojo_app, authentifie les utilisateurs de façon sûre, parle FR/Kreyòl/EN et s'installe comme PWA.
+Prérequis
+ •  Lot 1 installé : base migrée (001 à 009) et Super Administrator créé.
+ •  Node.js 20 ou plus sur la machine de développement.
+ 
+Déjà fait
+ ✓  Migration 010 (fonction log_event pour l'audit applicatif, fonction latest_usd_htg pour le dernier
+ taux).
+✓  Projet Next.js + TypeScript initialisé : package.json, tsconfig, next.config avec en-têtes de
+ sécurité, .env.example, dépendances installées.
+✓  Reste à écrire et tester : tout le code listé ci-dessous (non encore livré).
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  2.1  Couche base de données : pool PostgreSQL et fonction withUser qui ouvre une transaction et
+ pose app.user_id et app.ip, afin que l'audit et la RLS identifient l'utilisateur.
+☐  2.2  Connexion : vérification bcrypt, message d'erreur identique que le compte existe ou non,
+ verrouillage temporaire après N échecs (paramètre app_settings), journalisation de chaque
+tentative.
+☐  2.3  Sessions : jeton aléatoire, seul son hash SHA-256 est stocké, cookie httpOnly +
+ SameSite=Lax (+ Secure en HTTPS), expiration configurable, révocation à la déconnexion.
+☐  2.4  Récupération de compte : jeton à usage unique (validité 1 h) généré par un administrateur,
+ page de réinitialisation, invalidation des sessions existantes après changement de mot de passe.
+☐  2.5  Middleware : redirection vers la connexion sans session ; routes publiques limitées
+ (connexion, réinitialisation, santé, manifest, service worker).
+☐  2.6  Internationalisation : fichiers fr.json, ht.json, en.json ; langue enregistrée par utilisateur
+ (cookie avant connexion) ; dates et montants formatés selon la langue.
+☐  2.7  Argent : fonctions de formatage HTG/USD, conversion avec le dernier taux saisi, bascule
+ d'affichage HTG/USD par utilisateur ; mention claire si aucun taux n'existe.
+☐  2.8  Structure d'écran : sidebar filtrée par permissions, topbar (recherche globale, notifications,
+ langue, devise, menu utilisateur), fil d'Ariane, identifiant visuel discret par direction.
+☐  2.9  Pages : connexion, réinitialisation, profil (mot de passe, langue, devise), accès refusé, page
+ introuvable, pages « bientôt disponible » pour les modules non encore construits.
+☐  2.10  PWA : manifest, icônes 192 et 512, service worker minimal avec page hors ligne, installation
+ sur téléphone.
+☐  2.11  Point de santé /api/health pour la supervision.
+ ☐  2.12  Docker : Dockerfile de l'application et service app dans docker-compose ; guide
+ d'installation mis à jour.
+Règles métier à respecter
+ •  Aucun secret dans le code ; tout vient de .env.
+ •  L'application se connecte uniquement avec mojo_app, jamais avec le propriétaire de la base.
+ •  Le contrôle de permission se fait côté serveur ; l'interface ne fait que masquer.
+ 
+Livrables
+ •  mojo-erp-lot2.zip (code, migrations, Docker, README à jour).
+ 
+
+=== PAGE 6 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 6
+•  Document d'installation et de vérification.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Connexion avec le Super Administrateur du Lot 1.
+ ☐  Après le nombre d'échecs fixé, le compte est verrouillé temporairement.
+ ☐  La langue change entre français, kreyòl et anglais ; la devise bascule entre HTG et USD.
+ ☐  Un utilisateur sans session est renvoyé à la connexion.
+ ☐  L'application s'installe sur un téléphone comme une application.
+ ☐  Build sans erreur ; tests unitaires (argent, parité des traductions) et tests d'intégration (connexion,
+ verrouillage, sessions) au vert.
+☐  Test de permission : l'utilisateur de la base mojo_app ne peut pas modifier le journal d'audit.
+ 
+Décisions à prendre
+ •  Durée de session (480 minutes proposées) et nombre d'échecs avant verrouillage (5 proposés).
+ •  Longueur minimale du mot de passe (12 caractères proposés).
+ •  Logo et palette officiels de MoJoPIKtures (à fournir) ; sinon identité provisoire sobre.
+ •  Relecture des traductions kreyòl et anglais par une personne de confiance.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 7 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 7
+LOT 3
+Utilisateurs, rôles, directions, audit et dashboard
+de base
+ À FAIRE
+Phase 1 (Foundation), partie B · Sprint 2
+Objectif. Terminer la Foundation : administrer les accès, voir tout ce qui se passe, et disposer d'un
+premier tableau de bord.
+Prérequis
+ •  Lot 2 validé.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  3.1  Écran Utilisateurs : liste, recherche, création, activation/désactivation, affectation à une
+ direction, rôles multiples, portée par entité (MoJoPIKtures ou MOJO Store).
+☐  3.2  Garde-fous : on ne peut pas se désactiver soi-même, on ne peut jamais retirer le dernier
+ Super Administrator, mot de passe d'au moins 12 caractères.
+☐  3.3  Réinitialisation de mot de passe par un administrateur (lien à usage unique affiché une seule
+ fois).
+☐  3.4  Écran Rôles et permissions : matrice modifiable par module, création de rôles personnalisés,
+ rôle Super Administrator non modifiable.
+☐  3.5  Règle anti-escalade : on ne peut accorder à un rôle que des permissions que l'on possède
+ soi-même.
+☐  3.6  Écran Directions : les six directions, responsable, couleur d'identification.
+ ☐  3.7  Écran Paramètres : devise de référence, devise d'affichage par défaut, langues, mois de
+ début d'exercice, durée de session, verrouillage.
+☐  3.8  Visionneuse du journal d'audit : filtres (utilisateur, module, table, action, période), détail
+ ancienne/nouvelle valeur, export.
+☐  3.9  Dashboard de base : cartes KPI filtrées par permission (trésorerie, revenus et dépenses du
+ mois, fonds d'urgence, approbations en attente, stock faible, projets en cours), graphique revenus
+contre dépenses sur 6 mois, filtres de période (aujourd'hui, semaine, mois, trimestre, année,
+personnalisée).
+☐  3.10  Données de démonstration facultatives, dans un fichier séparé, pour tester l'interface.
+ ☐  3.11  Tests de permissions : pour chaque rôle, vérifier que les actions interdites sont refusées par
+ l'API et, pour RH/salaires, par la base.
+Règles métier à respecter
+ •  Toute modification de rôle, de permission ou d'utilisateur est auditée.
+ •  Les permissions ne sont jamais écrites en dur dans les composants.
+ 
+Livrables
+ •  mojo-erp-lot3.zip.
+ •  Matrice de permissions testée (rapport de tests).
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Un caissier ne peut ouvrir ni les paramètres ni la paie, même en tapant l'adresse à la main.
+ ☐  Créer un rôle personnalisé et le voir appliqué à l'utilisateur dès la prochaine requête.
+ ☐  Chaque modification apparaît dans le journal d'audit avec l'ancienne et la nouvelle valeur.
+ ☐  Le dashboard n'affiche à chaque utilisateur que ce que ses permissions autorisent.
+ 
+Décisions à prendre
+ •  Rôles supplémentaires éventuels.
+ 
+
+=== PAGE 8 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 8
+•  Qui est le responsable de chacune des six directions.
+ •  Indicateurs prioritaires du dashboard de la DG.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 9 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 9
+LOT 4
+Finance : taux, comptes, caisse et transactions
+ À FAIRE
+Phase 2 (Finance), partie A · Sprint 3
+Objectif. Pouvoir enregistrer correctement revenus et dépenses en HTG et en USD, avec des soldes
+fiables.
+Prérequis
+ •  Phase 1 validée (Lots 2 et 3).
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  4.1  Taux de change : saisie manuelle (HTG pour 1 USD) avec date, historique, rappel si aucun
+ taux n'est saisi pour la journée.
+☐  4.2  Comptes : caisse, banques, mobile money, par entité ; solde d'ouverture ; vue des soldes.
+ ☐  4.3  Catégories de revenus et de dépenses : hiérarchie, par entité ; liste initiale à valider avec
+ vous.
+☐  4.4  Transactions : saisie de revenus, dépenses et ajustements ; le taux est figé au moment de la
+ saisie ; numérotation ; pièces justificatives.
+☐  4.5  Cycle de vie : brouillon, en approbation, validée, rejetée, contre-passée.
+ ☐  4.6  Validation avec séparation des tâches : la personne qui crée ne valide pas sa propre
+ opération.
+☐  4.7  Contre-passation : correction par écriture inverse liée à l'originale ; aucune suppression
+ silencieuse.
+☐  4.8  Transferts entre comptes d'une même entité.
+ ☐  4.9  Caisse : ouverture, clôture et comptage journalier avec calcul d'écart (nouvelle migration
+ 011).
+☐  4.10  Paiements et encaissements ; dettes et remboursements.
+ ☐  4.11  Listes avec filtres, recherche et export ; formulaire mobile « ajout rapide d'une dépense ».
+ ☐  4.12  Tests financiers : arrondis, deux devises, immuabilité, validations simultanées, cohérence
+ des soldes, données réalistes.
+Règles métier à respecter
+ •  Montants toujours en décimal exact, jamais en nombre flottant.
+ •  Toute transaction porte son entité, sa devise et son taux figé.
+ •  Une transaction validée ne se modifie ni ne se supprime.
+ 
+Livrables
+ •  mojo-erp-lot4.zip.
+ •  Jeu de données de test réaliste.
+ •  Rapport de tests financiers.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Une dépense de 500 USD et une de 20 000 HTG donnent le bon total dans les deux devises
+ d'affichage.
+☐  Tenter de modifier ou supprimer une transaction validée échoue ; la contre-passation fonctionne.
+ ☐  Le solde de chaque compte correspond au calcul manuel sur 50 opérations de test.
+ 
+Décisions à prendre
+ •  Comptes initiaux (caisse, banques) et soldes d'ouverture.
+ •  Liste des catégories.
+ •  Règle de numérotation des pièces.
+ 
+
+=== PAGE 10 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 10
+•  Plafond de caisse et règle d'écart toléré.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 11 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 11
+LOT 5
+Finance : budgets, moteur d'approbation et
+notifications
+ À FAIRE
+Phase 2 (Finance), partie B · Sprint 4
+Objectif. Faire passer les décisions financières par les bons validateurs, avec seuils configurables, et
+prévenir les personnes concernées.
+Prérequis
+ •  Lot 4 validé.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  5.1  Budgets : annuel et mensuel, par direction, projet, catégorie, marketing, opérations, RH ;
+ lignes budgétaires.
+☐  5.2  Comparaison budget et réel ; alerte au seuil de dépassement configurable.
+ ☐  5.3  Moteur d'approbation : démarrage d'une demande, calcul des étapes requises selon le
+ montant converti en USD, approbation, refus, renvoi, commentaire.
+☐  5.4  Règles : le demandeur n'approuve pas sa propre demande ; chaque décision est tracée.
+ ☐  5.5  Écran d'administration des workflows : étapes, rôles approbateurs, seuils.
+ ☐  5.6  Files de travail : « à traiter », « mes demandes », historique.
+ ☐  5.7  Demandes d'achat et dépenses exceptionnelles branchées sur le moteur.
+ ☐  5.8  Centre de notifications : badge, liste, marquer comme lu.
+ ☐  5.9  Tâches planifiées : facture en retard, paiement attendu, contrat arrivant à échéance, budget
+ dépassé, projet en retard.
+☐  5.10  Notifications push web (optionnel) pour les validations rapides sur téléphone.
+ ☐  5.11  Tests : parcours complet de chaque workflow, seuils aux limites, droits des approbateurs.
+ 
+Règles métier à respecter
+ •  Les seuils et étapes ne sont jamais codés en dur.
+ •  Une demande clôturée ne se rouvre pas ; on en crée une nouvelle.
+ 
+Livrables
+ •  mojo-erp-lot5.zip.
+ •  Tableau récapitulatif des workflows actifs.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Un achat sous le seuil s'arrête au DAF ; au-dessus, il monte à la DG.
+ ☐  Modifier un seuil depuis l'administration change le comportement immédiatement.
+ ☐  L'approbateur reçoit la notification, la valide depuis son téléphone.
+ 
+Décisions à prendre
+ •  Seuils réels de la Direction Générale.
+ •  Délais d'escalade si personne ne répond.
+ •  Canaux de notification : interne seulement, ou aussi e-mail/push.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 12 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 12
+LOT 6
+Finance : Fonds d'Urgence et rapports financiers
+ À FAIRE
+Phase 2 (Finance), partie C · Sprint 5
+Objectif. Mettre en œuvre le fonds selon les règles du livrable 9 et produire les rapports financiers
+de la DAF et de la DG.
+Prérequis
+ •  Lots 4 et 5 validés.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  6.1  Paramétrage du fonds : devise, compte dédié, objectif.
+ ☐  6.2  Pourcentage : saisie par la direction, historique, modification soumise à approbation de la DG,
+ jamais rétroactive.
+☐  6.3  Contribution automatique à la validation d'un revenu, dans la même transaction SQL ; une
+ seule contribution par revenu.
+☐  6.4  Contributions manuelles justifiées.
+ ☐  6.5  Retrait : demande avec motif et justificatifs, approbation DAF puis DG, décaissement, blocage
+ si le solde est insuffisant.
+☐  6.6  Tableau de bord du fonds : solde, objectif, progression, historique.
+ ☐  6.7  Rapports mensuel, trimestriel, annuel : revenus, dépenses, résultat, trésorerie, fonds, budget,
+ créances, dettes, rentabilité.
+☐  6.8  Export PDF et Excel, impression, filtres.
+ ☐  6.9  Rapport mensuel automatique et notification.
+ ☐  6.10  Tests : arrondis, taux qui change, double déclenchement impossible, retraits simultanés.
+ 
+Règles métier à respecter
+ •  Aucune valeur de pourcentage par défaut.
+ •  Tant qu'aucun pourcentage n'est fixé, aucune contribution automatique.
+ 
+Livrables
+ •  mojo-erp-lot6.zip.
+ •  Exemples de rapports PDF et Excel.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Un revenu validé génère exactement une contribution au pourcentage en vigueur à sa date.
+ ☐  Un retrait supérieur au solde est refusé.
+ ☐  Les chiffres des rapports concordent avec les écrans.
+ 
+Décisions à prendre
+ •  Pourcentage du fonds.
+ •  Objectif financier.
+ •  Base de calcul des contributions (revenus validés d'exploitation proposés).
+ •  Devise et compte du fonds.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 13 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 13
+LOT 7
+Ressources humaines : employés, présences,
+congés, documents
+ À FAIRE
+Phase 3 (Administration et RH), partie A · Sprint 6
+Objectif. Gérer les dossiers du personnel avec un niveau de confidentialité supérieur.
+Prérequis
+ •  Phase 2 validée.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  7.1  Fiche employé : identité, fonction, direction, date d'entrée, statut, contrat, responsable
+ hiérarchique ; historique professionnel.
+☐  7.2  Documents administratifs avec niveau de confidentialité « RH » (protégés par la base).
+ ☐  7.3  Présences, absences, retards, permissions ; saisie et vue calendrier.
+ ☐  7.4  Types de congés, soldes, demandes, approbation via le moteur ; notification au responsable
+ RH.
+☐  7.5  Évaluations périodiques.
+ ☐  7.6  Accès : l'employé voit sa propre fiche ; le RH voit tout le personnel.
+ ☐  7.7  Rapports : effectifs, absences, congés.
+ ☐  7.8  Tests de confidentialité : un utilisateur sans droit RH ne reçoit aucune ligne, même via l'API.
+ 
+Règles métier à respecter
+ •  Les données personnelles sont minimisées : pièces d'identité masquées dans les listes.
+ •  Aucun accès RH sans permission, vérifié par la base.
+ 
+Livrables
+ •  mojo-erp-lot7.zip.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Un utilisateur standard ne voit que sa propre fiche.
+ ☐  Un congé demandé suit le workflow et met à jour le solde.
+ 
+Décisions à prendre
+ •  Types de congés et droits annuels (à valider avec le droit du travail haïtien).
+ •  Informations obligatoires dans la fiche employé.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 14 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 14
+LOT 8
+Ressources humaines : paie, formations,
+recrutement, départs
+ À FAIRE
+Phase 3 (Administration et RH), partie B · Sprint 7
+Objectif. Gérer la masse salariale en toute confidentialité et boucler le cycle de vie de l'employé.
+Prérequis
+ •  Lot 7 validé.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  8.1  Salaires de base par période d'effet, devise et fréquence de paie.
+ ☐  8.2  Avances, bonus, déductions avec approbation.
+ ☐  8.3  Cycle de paie : brouillon, approbation DAF puis DG, paiement ; génération des transactions de
+ dépense.
+☐  8.4  Bulletins de paie imprimables.
+ ☐  8.5  Formations et participants ; recrutement (offres, candidats, étapes) ; départs.
+ ☐  8.6  Rapport masse salariale, exportable.
+ ☐  8.7  Tests : un caissier ou un comptable sans droit salarial ne voit aucun montant ; calcul net
+ exact ; paie non modifiable après paiement.
+Règles métier à respecter
+ •  Salaires protégés par la base (RLS).
+ •  Une paie payée ne se modifie plus ; correction par ajustement.
+ 
+Livrables
+ •  mojo-erp-lot8.zip.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Le net de chaque bulletin = brut + bonus − déductions − avances récupérées.
+ ☐  Les salaires sont invisibles sans permission, même en interrogeant l'API directement.
+ 
+Décisions à prendre
+ •  Cotisations et retenues légales à appliquer (à valider avec un comptable ou un juriste).
+ •  Fréquence de paie.
+ •  Qui voit les salaires : RH, DAF, DG.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 15 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 15
+LOT 9
+Affaires : clients, prospects, pipeline et
+opportunités
+ À FAIRE
+Phase 4 (Affaires), partie A · Sprint 8
+Objectif. Suivre chaque affaire de la prospection au paiement.
+Prérequis
+ •  Phase 3 validée.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  9.1  Prospects, clients, contacts, historique des échanges, services demandés.
+ ☐  9.2  Pipeline : Prospect, Contact, Proposition, Négociation, Contrat, Client, Livraison, Paiement,
+ avec vue kanban par glisser-déposer.
+☐  9.3  Opportunités : montant estimé, devise, date de clôture prévue, responsable, raison de perte.
+ ☐  9.4  Historique des changements d'étape.
+ ☐  9.5  Rappels de relance.
+ ☐  9.6  Fournisseurs et partenaires.
+ ☐  9.7  Rapports : prospects, clients, opportunités.
+ ☐  9.8  Tests : transitions d'étapes, droits par rôle, import de contacts existants (si fichier fourni).
+ 
+Règles métier à respecter
+ •  Un client peut exister dans plusieurs affaires ; une affaire a un seul responsable.
+ 
+Livrables
+ •  mojo-erp-lot9.zip.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Déplacer une affaire d'une colonne à l'autre enregistre l'historique et l'audit.
+ 
+Décisions à prendre
+ •  Services proposés par MoJoPIKtures (liste).
+ •  Étapes du pipeline à conserver ou ajuster.
+ •  Fichier de clients existants à importer, le cas échéant.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 16 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 16
+LOT
+10
+Affaires : contrats, partenaires, facturation et
+encaissements
+ À FAIRE
+Phase 4 (Affaires), partie B · Sprint 9
+Objectif. Transformer les affaires en contrats, factures et paiements, reliés à la finance.
+Prérequis
+ •  Lot 9 validé.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  10.1  Contrats clients, fournisseurs, partenaires : montants, dates, conditions, échéances,
+ renouvellements, documents, statut.
+☐  10.2  Jalons de contrat et alertes d'expiration.
+ ☐  10.3  Factures : lignes, réduction, taxes, numérotation, PDF imprimable avec identité visuelle,
+ bilingue selon la langue choisie.
+☐  10.4  Encaissements : paiements partiels, HTG ou USD, reçus numérotés, rattachement
+ automatique à une transaction de revenu.
+☐  10.5  Créances et suivi des retards avec relances.
+ ☐  10.6  Approbation des contrats via le moteur.
+ ☐  10.7  Rapports commerciaux : contrats, revenus commerciaux, créances.
+ ☐  10.8  Tests : paiement en devise différente de celle de la facture, solde dû, facture en retard.
+ 
+Règles métier à respecter
+ •  Une facture émise ne se modifie pas ; on émet un avoir.
+ •  Un encaissement crée un revenu, ce qui déclenche la contribution du fonds d'urgence.
+ 
+Livrables
+ •  mojo-erp-lot10.zip.
+ •  Modèle de facture PDF.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Une facture payée en deux fois, dont une en HTG et une en USD, affiche le bon solde.
+ ☐  Un contrat expirant dans le délai fixé génère une notification.
+ 
+Décisions à prendre
+ •  Modèle de facture (mentions légales, logo).
+ •  Taxes applicables.
+ •  Conditions de paiement standard.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 17 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 17
+LOT
+11
+Marketing : campagnes, contenu et performance
+ À FAIRE
+Phase 5 (Marketing) · Sprint 10
+Objectif. Relier chaque campagne à son budget, ses dépenses et ses résultats.
+Prérequis
+ •  Phase 4 validée.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  11.1  Campagnes : objectifs, budget, dates, responsable, canaux, direction, projet.
+ ☐  11.2  Dépenses de campagne reliées aux transactions ; budget marketing.
+ ☐  11.3  Contenu : publications, visuels, vidéos, calendrier éditorial, statut de production.
+ ☐  11.4  Résultats par canal : impressions, clics, prospects, conversions, revenus générés.
+ ☐  11.5  Comparaison budget prévu, dépenses réelles et résultats ; alertes de dépassement.
+ ☐  11.6  Rapports marketing, export PDF/Excel.
+ ☐  11.7  Tests : cohérence des totaux avec la finance.
+ 
+Règles métier à respecter
+ •  Une dépense de campagne passe par le circuit d'approbation habituel.
+ 
+Livrables
+ •  mojo-erp-lot11.zip.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Le budget consommé d'une campagne égale la somme des dépenses validées liées.
+ 
+Décisions à prendre
+ •  Canaux suivis (réseaux sociaux, publicité, événements).
+ •  Indicateurs de performance prioritaires.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 18 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 18
+LOT
+12
+Opérations et projets
+ À FAIRE
+Phase 6 (Opérations) · Sprint 11
+Objectif. Piloter les activités quotidiennes et la rentabilité de chaque projet.
+Prérequis
+ •  Phase 5 validée.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  12.1  Projets : responsable, direction, budget, dépenses, revenus, dates, statut, progression,
+ documents.
+☐  12.2  Tâches : liste et kanban, priorités, échéances, sous-tâches, assignation.
+ ☐  12.3  Activités récurrentes ; ressources (équipement, véhicules, salles) et allocations avec
+ détection de conflit.
+☐  12.4  Vues : projets en cours, terminés, en retard, budget utilisé et restant.
+ ☐  12.5  Approbation des projets par la DG.
+ ☐  12.6  Rapports opérationnels : projets, tâches, délais, ressources.
+ ☐  12.7  Tests : rentabilité d'un projet = revenus validés − dépenses validées.
+ 
+Règles métier à respecter
+ •  Les revenus et dépenses d'un projet viennent des transactions validées, pas d'une saisie séparée.
+ 
+Livrables
+ •  mojo-erp-lot12.zip.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Le budget restant d'un projet est correct après plusieurs dépenses en HTG et en USD.
+ 
+Décisions à prendre
+ •  Modèle de suivi de progression (manuel ou calculé par tâches).
+ •  Liste des ressources à gérer.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 19 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 19
+LOT
+13
+MOJO Store : produits, stock et inventaire
+ À FAIRE
+Phase 7 (MOJO Store), partie A · Sprint 12
+Objectif. Gérer le catalogue et le stock de MOJO Store, entité financière distincte.
+Prérequis
+ •  Phase 6 validée.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  13.1  Produits : SKU, code-barres, catégorie, prix d'achat et de vente, devise, stock minimum,
+ fournisseur, image, statut.
+☐  13.2  Mouvements de stock : entrée, sortie, vente, retour, perte, ajustement, transfert ; stock
+ calculé à partir des mouvements.
+☐  13.3  Inventaire : comptage, écarts, régularisation justifiée.
+ ☐  13.4  Alerte de stock faible.
+ ☐  13.5  Scan de code-barres par la caméra du téléphone.
+ ☐  13.6  Import de produits par fichier.
+ ☐  13.7  Tests : le stock ne devient jamais incohérent après des mouvements simultanés.
+ 
+Règles métier à respecter
+ •  Le stock est la somme des mouvements ; on ne le modifie jamais directement.
+ 
+Livrables
+ •  mojo-erp-lot13.zip.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Un inventaire avec écart génère un ajustement tracé et un rapport d'écart.
+ 
+Décisions à prendre
+ •  Catégories de produits.
+ •  Fichier de produits existants à importer.
+ •  Un seul lieu de stock ou plusieurs.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 20 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 20
+LOT
+14
+MOJO Store : POS, ventes et finance propre du
+Store
+ À FAIRE
+Phase 7 (MOJO Store), partie B · Sprint 13
+Objectif. Encaisser rapidement et tenir la comptabilité simple du Store séparément de MoJoPIKtures.
+Prérequis
+ •  Lot 13 validé.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  14.1  Interface POS : sélection ou scan, quantité, prix, réduction, client, mode de paiement, reçu
+ imprimable, historique.
+☐  14.2  Paiement en HTG ou USD au taux du jour, rendu de monnaie.
+ ☐  14.3  Annulation et retour contrôlés par permission.
+ ☐  14.4  Chaque vente met à jour le stock et crée les transactions de revenu de l'entité Store.
+ ☐  14.5  Caisse et comptes propres au Store ; clôture de caisse.
+ ☐  14.6  Transferts entre le Store et MoJoPIKtures (apport, reversement, prêt) en deux écritures liées,
+ visibles des deux côtés.
+☐  14.7  Mode hors ligne : file locale de ventes synchronisée au retour du réseau.
+ ☐  14.8  Dashboard et diagrammes propres au Store.
+ ☐  14.9  Tests : ventes simultanées, panier mixte, rendu de monnaie, synchronisation après coupure.
+ 
+Règles métier à respecter
+ •  Les revenus du Store ne comptent pas directement dans le fonds d'urgence de MoJoPIKtures ; seul
+ un reversement enregistré comme revenu y contribue.
+Livrables
+ •  mojo-erp-lot14.zip.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Une vente de trois articles réduit le stock, crée le revenu Store et imprime un reçu correct.
+ ☐  Une vente faite hors ligne apparaît après reconnexion, sans doublon.
+ 
+Décisions à prendre
+ •  Mentions du reçu.
+ •  Règle de réduction maximale par rôle.
+ •  Politique de retour.
+ •  Imprimante ou lecteur de codes-barres utilisés.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 21 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 21
+LOT
+15
+MOJO Store : exposants, commissions et rapports
+ À FAIRE
+Phase 7 (MOJO Store), partie C · Sprint 14
+Objectif. Gérer les exposants hébergés et calculer ce qui leur est dû.
+Prérequis
+ •  Lot 14 validé.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  15.1  Profil exposant, espace attribué, contrat, loyer, commission, produits.
+ ☐  15.2  Ventes par exposant et relevés périodiques : ventes − commission − loyer = solde dû.
+ ☐  15.3  Paiements aux exposants et encaissements de loyers, en HTG ou USD.
+ ☐  15.4  Notifications d'échéance de loyer.
+ ☐  15.5  Rapports Store : ventes, stock, produits, marges, exposants, commissions.
+ ☐  15.6  Tests : relevé d'un exposant avec ventes en deux devises, solde négatif (l'exposant doit au
+ Store).
+Règles métier à respecter
+ •  Le solde dû est calculé par le service puis figé dans le relevé validé.
+ 
+Livrables
+ •  mojo-erp-lot15.zip.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Le relevé d'un exposant correspond au calcul manuel.
+ 
+Décisions à prendre
+ •  Formule exacte des commissions (sur ventes brutes ou nettes).
+ •  Périodicité des relevés.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 22 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 22
+LOT
+16
+Rapports et analytique
+ À FAIRE
+Phase 8 · Sprints 15 et 16
+Objectif. Unifier les rapports et enrichir le dashboard de la Direction Générale.
+Prérequis
+ •  Phase 7 validée.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  16.1  Centre de rapports : catalogue unique (financier, RH, commercial, marketing, opérationnel,
+ Store).
+☐  16.2  Filtres communs, consultation en ligne, impression.
+ ☐  16.3  Export PDF et Excel avec en-tête et identité MoJoPIKtures, dans la langue de l'utilisateur.
+ ☐  16.4  Dashboard avancé de la DG : performance par direction, consolidation des deux entités,
+ tendances.
+☐  16.5  Rapports programmés envoyés ou notifiés.
+ ☐  16.6  Optimisation : index, vues matérialisées si nécessaire.
+ ☐  16.7  Tests : chaque rapport recoupé avec les écrans de saisie.
+ 
+Règles métier à respecter
+ •  Un chiffre n'apparaît jamais deux fois avec des valeurs différentes selon l'écran.
+ 
+Livrables
+ •  mojo-erp-lot16.zip.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Les totaux des rapports concordent avec les écrans sur le jeu de données de test.
+ 
+Décisions à prendre
+ •  Rapports indispensables pour la DG.
+ •  Formats et en-têtes officiels.
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 23 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 23
+LOT
+17
+Sécurité, tests complets et mise en production
+ À FAIRE
+Phase 9 · Sprints 17 et 18
+Objectif. Rendre le système fiable et exploitable en production.
+Prérequis
+ •  Tous les lots précédents validés.
+ 
+Étapes à réaliser (dans l'ordre)
+ ☐  17.1  Tests de permissions exhaustifs par rôle, serveur et base.
+ ☐  17.2  Tests financiers sur un exercice simulé complet.
+ ☐  17.3  Tests mobiles sur les appareils réels de l'équipe.
+ ☐  17.4  Tests de charge réalistes.
+ ☐  17.5  Revue de sécurité : mots de passe, sessions, en-têtes, fichiers, dépendances, secrets,
+ journalisation.
+☐  17.6  Sauvegardes chiffrées, copie hors serveur, test de restauration chronométré.
+ ☐  17.7  Procédure de reprise après incident.
+ ☐  17.8  Déploiement production : HTTPS, domaine, supervision, mises à jour.
+ ☐  17.9  Migration de l'hébergement local vers le cloud si décidé.
+ ☐  17.10  Formation des utilisateurs et manuel d'utilisation en français et kreyòl.
+ ☐  17.11  Recette finale signée, puis période de suivi.
+ 
+Règles métier à respecter
+ •  Aucune mise en production sans restauration testée.
+ 
+Livrables
+ •  mojo-erp-final.zip.
+ •  Manuel d'utilisation.
+ •  Procédures d'exploitation.
+ 
+Critères de validation (à vérifier par vous)
+ ☐  Checklist de recette signée par la direction.
+ 
+Décisions à prendre
+ •  Choix de l'hébergeur et du domaine.
+ •  Personnes formées et calendrier.
+ •  Audit de sécurité externe (recommandé).
+ 
+Lot validé par Augustin :  ☐    Date : ____ / ____ / ________    Remarques : ________________________
+
+
+=== PAGE 24 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 24
+Annexe A. Procédure de reprise : avec qui et
+comment continuer
+Pour toujours savoir où reprendre, suivez ces étapes au début de chaque nouvelle séance de travail :
+ 1.  Ouvrez ce document et repérez le dernier lot validé dans le tableau de suivi (section 2).
+ 2.  Travaillez dans le projet « MoJo ERP » de Claude, afin que les décisions déjà prises restent
+ disponibles.
+3.  Joignez à la conversation le dernier zip livré et ce PDF.
+ 4.  Écrivez un message court, par exemple : « Je reprends le projet MoJo ERP. Dernier lot validé : Lot
+ 2. Continue avec le Lot 3. Voici le zip et la feuille de route. »
+5.  Si un test a échoué chez vous, copiez le message d'erreur complet dans la conversation ; ne
+ résumez pas.
+6.  À la fin du lot, testez avec les critères de validation, cochez la case, notez la date, puis passez au
+ suivant.
+Où reprendre si quelque chose est bloqué
+ •  Installation ou base de données : reprendre au guide du README du dernier zip.
+ •  Doute sur une règle métier : les documents du dossier docs/ du Lot 1 font foi (livrables 1 à 10).
+ •  Changement de décision : dites-le simplement ; je mettrai à jour le lot concerné et le journal
+ d'avancement.
+Règles permanentes du projet
+ •  Aucun pourcentage du fonds d'urgence, aucun seuil d'approbation, aucun taux de change n'est
+ codé en dur : tout est configurable.
+•  Une transaction validée ne se modifie ni ne se supprime ; on corrige par contre-passation.
+ •  Les permissions sont contrôlées côté serveur et, pour RH et salaires, côté base de données.
+ •  Chaque opération sensible est inscrite dans le journal d'audit, qui ne peut pas être modifié.
+ •  On avance module par module, avec tests et validation, sans jamais mélanger plusieurs lots.
+ •  Les règles de paie, de congés et de fiscalité doivent être validées par un comptable ou un juriste
+ avant utilisation réelle.
+•  Les traductions kreyòl et anglaises doivent être relues par une personne de confiance.
+ •  Les sauvegardes sont testées en restauration avant toute mise en production.
+ 
+
+=== PAGE 25 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 25
+Annexe B. Journal d'avancement
+À remplir au fil du projet. Une ligne par événement : livraison, validation, changement de décision.
+Date
+Lot
+Événement
+Remarques
+22/10/2026
+1
+Lot 1 livré (conception et base de données)
+À valider
+22/10/2026
+2
+Lot 2 commencé : migration 010, projet Next.js,
+dépendances
+Non livré
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+=== PAGE 26 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 26
+Annexe C. Récapitulatif des décisions à prendre
+Toutes les décisions attendues de votre part, regroupées par lot. Écrivez votre réponse dans la
+dernière colonne, ou donnez-la-moi directement ; en l'absence de réponse, j'applique la valeur
+proposée et je la signale.
+Lot
+Décision
+Votre réponse
+2
+Durée de session (480 minutes proposées) et nombre d'échecs
+avant verrouillage (5 proposés).
+ 
+2
+Longueur minimale du mot de passe (12 caractères proposés).
+ 
+2
+Logo et palette officiels de MoJoPIKtures (à fournir) ; sinon identité
+provisoire sobre.
+ 
+2
+Relecture des traductions kreyòl et anglais par une personne de
+confiance.
+ 
+3
+Rôles supplémentaires éventuels.
+ 
+3
+Qui est le responsable de chacune des six directions.
+ 
+3
+Indicateurs prioritaires du dashboard de la DG.
+ 
+4
+Comptes initiaux (caisse, banques) et soldes d'ouverture.
+ 
+4
+Liste des catégories.
+ 
+4
+Règle de numérotation des pièces.
+ 
+4
+Plafond de caisse et règle d'écart toléré.
+ 
+5
+Seuils réels de la Direction Générale.
+ 
+5
+Délais d'escalade si personne ne répond.
+ 
+5
+Canaux de notification : interne seulement, ou aussi e-mail/push.
+ 
+6
+Pourcentage du fonds.
+ 
+6
+Objectif financier.
+ 
+6
+Base de calcul des contributions (revenus validés d'exploitation
+proposés).
+ 
+6
+Devise et compte du fonds.
+ 
+7
+Types de congés et droits annuels (à valider avec le droit du travail
+haïtien).
+ 
+7
+Informations obligatoires dans la fiche employé.
+ 
+8
+Cotisations et retenues légales à appliquer (à valider avec un
+comptable ou un juriste).
+ 
+8
+Fréquence de paie.
+ 
+8
+Qui voit les salaires : RH, DAF, DG.
+ 
+9
+Services proposés par MoJoPIKtures (liste).
+ 
+9
+Étapes du pipeline à conserver ou ajuster.
+ 
+9
+Fichier de clients existants à importer, le cas échéant.
+ 
+10
+Modèle de facture (mentions légales, logo).
+ 
+10
+Taxes applicables.
+ 
+
+
+=== PAGE 27 ===
+MoJo ERP — Feuille de route après le Lot 1
+Page 27
+Lot
+Décision
+Votre réponse
+10
+Conditions de paiement standard.
+ 
+11
+Canaux suivis (réseaux sociaux, publicité, événements).
+ 
+11
+Indicateurs de performance prioritaires.
+ 
+12
+Modèle de suivi de progression (manuel ou calculé par tâches).
+ 
+12
+Liste des ressources à gérer.
+ 
+13
+Catégories de produits.
+ 
+13
+Fichier de produits existants à importer.
+ 
+13
+Un seul lieu de stock ou plusieurs.
+ 
+14
+Mentions du reçu.
+ 
+14
+Règle de réduction maximale par rôle.
+ 
+14
+Politique de retour.
+ 
+14
+Imprimante ou lecteur de codes-barres utilisés.
+ 
+15
+Formule exacte des commissions (sur ventes brutes ou nettes).
+ 
+15
+Périodicité des relevés.
+ 
+16
+Rapports indispensables pour la DG.
+ 
+16
+Formats et en-têtes officiels.
+ 
+17
+Choix de l'hébergeur et du domaine.
+ 
+17
+Personnes formées et calendrier.
+ 
+17
+Audit de sécurité externe (recommandé).
+ 

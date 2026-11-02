@@ -14,6 +14,18 @@ interface Attendance { id: string; first_name: string; last_name: string; work_d
 interface Balance { employee_id: string; first_name: string; last_name: string; leave_type_name: string; balance_year: number; carried_days: string; entitled_days: string; used_days: string }
 interface HrDocument { id: string; title: string; file_name: string; mime_type: string; document_kind: string }
 interface History { id: string; change_type: string; from_value: string | null; to_value: string | null; effective_date: string; note: string | null }
+interface PayrollData {
+  salaries: Array<{ id: string; employee_id: string; base_salary: string; currency: string; pay_frequency: string; effective_from: string; employee_code: string; first_name: string; last_name: string }>;
+  adjustments: Array<{ id: string; employee_id: string; kind: string; amount: string; currency: string; adjust_date: string; reason: string | null; status: string; first_name: string; last_name: string }>;
+  runs: Array<{ id: string; period_label: string; period_start: string; period_end: string; status: string; entries: Array<{ gross_amount: string; net_amount: string }> }>;
+}
+interface HrOperations {
+  trainings: Array<{ id: string; title: string; provider: string | null; start_date: string | null; end_date: string | null; cost: string | null; currency: string | null }>;
+  participants: Array<{ training_id: string; employee_id: string; training_title: string; first_name: string; last_name: string; status: string }>;
+  openings: Array<{ id: string; title: string; status: string; department_name: string | null }>;
+  candidates: Array<{ id: string; full_name: string; opening_title: string; stage: string }>;
+  departures: Array<{ id: string; first_name: string; last_name: string; departure_type: string; last_day: string }>;
+}
 
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
@@ -38,6 +50,8 @@ export function HrManager({ canManage, canManageAttendance }: { canManage: boole
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [documents, setDocuments] = useState<HrDocument[]>([]);
   const [history, setHistory] = useState<History[]>([]);
+  const [payroll, setPayroll] = useState<PayrollData | null>(null);
+  const [operations, setOperations] = useState<HrOperations | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [report, setReport] = useState<{ headcount: Array<{ status: string; count: number }>; attendanceThisMonth: Array<{ status: string; count: number }>; leaveThisYear: Array<{ status: string; count: number; days: string }> } | null>(null);
   const [error, setError] = useState("");
@@ -67,6 +81,16 @@ export function HrManager({ canManage, canManageAttendance }: { canManage: boole
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!["payroll", "talent", "operations"].includes(tab)) return;
+    void Promise.allSettled([
+      tab === "payroll" ? api<PayrollData>("/api/v1/hr/payroll").then(setPayroll) : Promise.resolve(),
+      ["talent", "operations"].includes(tab) ? api<HrOperations>("/api/v1/hr/operations").then(setOperations) : Promise.resolve(),
+    ]).then((results) => {
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed?.status === "rejected") setError(failed.reason instanceof Error ? failed.reason.message : "Impossible de charger cette section RH.");
+    });
+  }, [tab]);
   useEffect(() => {
     if (!selectedEmployee) return;
     void Promise.all([
@@ -143,6 +167,66 @@ export function HrManager({ canManage, canManageAttendance }: { canManage: boole
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Import du document impossible."); }
   }
 
+  async function submitPayroll(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await api("/api/v1/hr/payroll", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        type: "salary", employeeId: form.get("employeeId"), baseSalary: Number(form.get("baseSalary")),
+        currency: form.get("currency"), payFrequency: form.get("payFrequency"), effectiveFrom: form.get("effectiveFrom"),
+      }) });
+      setNotice("Salaire configuré.");
+      setPayroll(await api<PayrollData>("/api/v1/hr/payroll"));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Configuration salariale impossible."); }
+  }
+
+  async function submitAdjustment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await api("/api/v1/hr/payroll", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        type: "adjustment", employeeId: form.get("employeeId"), kind: form.get("kind"), amount: Number(form.get("amount")),
+        currency: form.get("currency"), adjustDate: form.get("adjustDate"), reason: form.get("reason") || null,
+      }) });
+      setNotice("Ajustement approuvé et enregistré.");
+      setPayroll(await api<PayrollData>("/api/v1/hr/payroll"));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Ajustement impossible."); }
+  }
+
+  async function submitRun(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      await api("/api/v1/hr/payroll", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        type: "run", periodLabel: form.get("periodLabel"), periodStart: form.get("periodStart"),
+        periodEnd: form.get("periodEnd"), currency: form.get("currency"),
+      }) });
+      setNotice("Cycle de paie créé en brouillon.");
+      setPayroll(await api<PayrollData>("/api/v1/hr/payroll"));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Création de paie impossible."); }
+  }
+
+  async function payrollAction(id: string, action: "submit" | "approve_daf" | "approve_dg" | "reject" | "pay") {
+    try {
+      await api(`/api/v1/hr/payroll/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+      setNotice(action === "pay" ? "Paie payée et écriture comptable créée." : "Statut de paie mis à jour.");
+      setPayroll(await api<PayrollData>("/api/v1/hr/payroll"));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Action de paie impossible."); }
+  }
+
+  async function submitOperation(event: FormEvent<HTMLFormElement>, type: string) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const body: Record<string, unknown> = { type };
+    form.forEach((value, key) => { body[key] = value || null; });
+    try {
+      await api("/api/v1/hr/operations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      setNotice("Opération RH enregistrée.");
+      setOperations(await api<HrOperations>("/api/v1/hr/operations"));
+      event.currentTarget.reset();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Enregistrement RH impossible."); }
+  }
+
   const headcount = report?.headcount.reduce((sum, row) => sum + row.count, 0) ?? employees.length;
   const employeeOptions = employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.first_name} {employee.last_name}</option>);
 
@@ -150,7 +234,7 @@ export function HrManager({ canManage, canManageAttendance }: { canManage: boole
     <section className="hr-shell">
       <div className="hr-toolbar">
         <nav className="hr-tabs" aria-label="Sections RH">
-          {[["people", "Employés"], ["attendance", "Présences"], ["leaves", "Congés"], ["evaluations", "Évaluations"], ["documents", "Documents"]].map(([id, label]) =>
+          {[["people", "Employés"], ["attendance", "Présences"], ["leaves", "Congés"], ["evaluations", "Évaluations"], ["documents", "Documents"], ["payroll", "Paie & bulletins"], ["operations", "Formations & départs"], ["talent", "Recrutement"]].map(([id, label]) =>
             <button type="button" key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}
         </nav>
         {canManage && <button className="button hr-primary-action" type="button" onClick={() => setTab("people")}>+ Nouvelle fiche</button>}
@@ -250,6 +334,63 @@ export function HrManager({ canManage, canManageAttendance }: { canManage: boole
           <div className="hr-timeline">{history.map((item) => <article key={item.id}><span>{item.effective_date}</span><strong>{item.change_type}</strong><p>{item.from_value || "—"} → {item.to_value || "—"}</p>{item.note && <small>{item.note}</small>}</article>)}</div>
         </div>
       </div>}
+
+      {tab === "payroll" && <>
+        {canManage && <div className="hr-two-column">
+          <form className="hr-panel hr-inline-form" onSubmit={submitPayroll}>
+            <h3>Configurer un salaire</h3>
+            <label>Employé<select name="employeeId">{employeeOptions}</select></label>
+            <label>Salaire brut<input name="baseSalary" type="number" min="0" step="0.01" required /></label>
+            <label>Devise<select name="currency"><option value="USD">USD</option><option value="HTG">HTG</option></select></label>
+            <label>Fréquence<select name="payFrequency"><option value="monthly">Mensuelle</option><option value="biweekly">Bimensuelle</option><option value="weekly">Hebdomadaire</option></select></label>
+            <label>Effet au<input name="effectiveFrom" type="date" required /></label>
+            <button className="button" type="submit">Enregistrer</button>
+          </form>
+          <form className="hr-panel hr-inline-form" onSubmit={submitAdjustment}>
+            <h3>Ajustement approuvé</h3>
+            <label>Employé<select name="employeeId">{employeeOptions}</select></label>
+            <label>Nature<select name="kind"><option value="bonus">Prime</option><option value="deduction">Retenue</option><option value="advance">Avance</option></select></label>
+            <label>Montant<input name="amount" type="number" min="0.01" step="0.01" required /></label>
+            <label>Devise<select name="currency"><option value="USD">USD</option><option value="HTG">HTG</option></select></label>
+            <label>Date<input name="adjustDate" type="date" required /></label>
+            <label className="hr-span-2">Motif<input name="reason" /></label>
+            <button className="button" type="submit">Approuver l'ajustement</button>
+          </form>
+        </div>}
+        {canManage && <form className="hr-panel hr-inline-form" onSubmit={submitRun}>
+          <h3>Créer un cycle de paie</h3>
+          <label>Libellé<input name="periodLabel" placeholder="Novembre 2026" required /></label>
+          <label>Du<input name="periodStart" type="date" required /></label>
+          <label>Au<input name="periodEnd" type="date" required /></label>
+          <label>Devise<select name="currency"><option value="USD">USD</option><option value="HTG">HTG</option></select></label>
+          <button className="button" type="submit">Calculer la paie</button>
+        </form>}
+        <div className="hr-panel table-scroll">
+          <div className="panel-heading"><div><span className="eyebrow">CONFIDENTIEL</span><h3>Cycles de paie</h3></div><a className="button button-secondary" href="/api/v1/hr/payroll/report">Exporter la masse salariale</a></div>
+          <table><thead><tr><th>Période</th><th>Employés</th><th>Net estimé</th><th>Statut</th><th>Workflow</th><th>Bulletins</th></tr></thead>
+            <tbody>{payroll?.runs.map((run) => <tr key={run.id}><td><strong>{run.period_label}</strong><span className="table-sub">{run.period_start} — {run.period_end}</span></td><td>{run.entries.length}</td><td>{run.entries.reduce((sum, entry) => sum + Number(entry.net_amount), 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 })}</td><td>{statusLabels[run.status] || run.status}</td><td>{canManage && <div className="hr-action-row">
+              {run.status === "draft" && <button type="button" onClick={() => payrollAction(run.id, "submit")}>Soumettre</button>}
+              {run.status === "pending_approval" && <button type="button" onClick={() => payrollAction(run.id, "approve_daf")}>Valider DAF</button>}
+              {run.status === "pending_dg" && <button type="button" onClick={() => payrollAction(run.id, "approve_dg")}>Valider DG</button>}
+              {run.status === "approved" && <button type="button" onClick={() => payrollAction(run.id, "pay")}>Marquer payé</button>}
+            </div>}</td><td><button type="button" onClick={() => window.print()}>Imprimer</button></td></tr>)}</tbody>
+          </table>
+        </div>
+      </>}
+
+      {(tab === "operations" || tab === "talent") && <>
+        {tab === "operations" && <>
+          {canManage && <form className="hr-panel hr-inline-form" onSubmit={(event) => submitOperation(event, "training")}><h3>Planifier une formation</h3><label>Formation<input name="title" required /></label><label>Organisme<input name="provider" /></label><label>Début<input name="startDate" type="date" /></label><label>Fin<input name="endDate" type="date" /></label><label>Coût<input name="cost" type="number" min="0" step="0.01" /></label><label>Devise<select name="currency"><option value="USD">USD</option><option value="HTG">HTG</option></select></label><button className="button" type="submit">Enregistrer</button></form>}
+          <div className="hr-panel table-scroll"><div className="panel-heading"><div><span className="eyebrow">DÉVELOPPEMENT</span><h3>Formations</h3></div></div><table><thead><tr><th>Titre</th><th>Organisme</th><th>Période</th><th>Coût</th><th>Participants</th></tr></thead><tbody>{operations?.trainings.map((training) => <tr key={training.id}><td><strong>{training.title}</strong></td><td>{training.provider || "—"}</td><td>{training.start_date || "—"} — {training.end_date || "—"}</td><td>{training.cost ? `${training.cost} ${training.currency}` : "—"}</td><td>{operations.participants.filter((participant) => participant.training_id === training.id).length}</td></tr>)}</tbody></table></div>
+          {canManage && <form className="hr-panel hr-inline-form" onSubmit={(event) => submitOperation(event, "departure")}><h3>Enregistrer un départ</h3><label>Employé<select name="employeeId">{employeeOptions}</select></label><label>Nature<select name="departureType"><option value="resignation">Démission</option><option value="dismissal">Licenciement</option><option value="end_of_contract">Fin de contrat</option><option value="retirement">Retraite</option><option value="other">Autre</option></select></label><label>Préavis<input name="noticeDate" type="date" /></label><label>Dernier jour<input name="lastDay" type="date" required /></label><label className="hr-span-2">Note<input name="note" /></label><button className="button" type="submit">Enregistrer</button></form>}
+          <div className="hr-panel table-scroll"><div className="panel-heading"><div><span className="eyebrow">SORTIES</span><h3>Départs</h3></div></div><table><thead><tr><th>Employé</th><th>Nature</th><th>Dernier jour</th></tr></thead><tbody>{operations?.departures.map((departure) => <tr key={departure.id}><td><strong>{departure.first_name} {departure.last_name}</strong></td><td>{departure.departure_type}</td><td>{departure.last_day}</td></tr>)}</tbody></table></div>
+        </>}
+        {tab === "talent" && <>
+          {canManage && <form className="hr-panel hr-inline-form" onSubmit={(event) => submitOperation(event, "opening")}><h3>Nouvelle offre</h3><label>Poste<input name="title" required /></label><label>Description<textarea name="description" rows={3} /></label><label>Statut<select name="status"><option value="draft">Brouillon</option><option value="open">Ouverte</option></select></label><label>Ouverte le<input name="openedOn" type="date" /></label><button className="button" type="submit">Créer l'offre</button></form>}
+          <div className="hr-panel table-scroll"><div className="panel-heading"><div><span className="eyebrow">RECRUTEMENT</span><h3>Postes et candidats</h3></div></div><table><thead><tr><th>Poste</th><th>Direction</th><th>Statut</th><th>Candidats</th></tr></thead><tbody>{operations?.openings.map((opening) => <tr key={opening.id}><td><strong>{opening.title}</strong></td><td>{opening.department_name || "—"}</td><td>{opening.status}</td><td>{operations.candidates.filter((candidate) => candidate.opening_title === opening.title).length}</td></tr>)}</tbody></table></div>
+          {canManage && <form className="hr-panel hr-inline-form" onSubmit={(event) => submitOperation(event, "candidate")}><h3>Nouveau candidat</h3><label>Offre<select name="jobOpeningId">{operations?.openings.map((opening) => <option key={opening.id} value={opening.id}>{opening.title}</option>)}</select></label><label>Nom complet<input name="fullName" required /></label><label>Email<input name="email" type="email" /></label><label>Téléphone<input name="phone" /></label><label>Étape<select name="stage"><option value="applied">Candidature</option><option value="screening">Pré-sélection</option><option value="interview">Entretien</option><option value="offer">Offre</option><option value="hired">Embauché</option><option value="rejected">Refusé</option></select></label><button className="button" type="submit">Ajouter</button></form>}
+        </>}
+      </>}
     </section>
   );
 }
