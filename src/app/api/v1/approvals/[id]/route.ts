@@ -341,6 +341,16 @@ export async function POST(
         if (!purchaseResult.rowCount) {
           throw new ApprovalError("The purchase request could not be marked approved.", 409);
         }
+      } else if (approval.request_type === "expense") {
+        const expenseResult = await client.query(
+          `UPDATE transactions
+           SET status = 'validated', validated_by = $2, validated_at = now(), updated_at = now()
+           WHERE id = $1 AND status = 'pending_approval'`,
+          [approval.ref_id, actor.id],
+        );
+        if (!expenseResult.rowCount) {
+          throw new ApprovalError("The expense transaction could not be marked validated.", 409);
+        }
       } else if (approval.request_type === "budget") {
         const budgetResult = await client.query(
           "UPDATE budgets SET status = 'approved' WHERE id = $1 AND status = 'pending_approval'",
