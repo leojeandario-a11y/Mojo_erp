@@ -19,7 +19,7 @@ const modules = [
   { key: "operations", href: "/modules/operations", icon: "⌘", permission: ["operations.project.read", "operations.project.manage", "operations.task.manage"] },
   { key: "projects", href: "/modules/projects", icon: "▦", permission: ["operations.project.read", "operations.project.manage"] },
   { key: "store", href: "/modules/store", icon: "▤", permission: ["store.product.read", "store.product.manage", "store.pos.sell"] },
-  { key: "approvals", href: "/modules/approvals", icon: "✓", permission: ["approvals.approve"] },
+  { key: "approvals", href: "/modules/approvals", icon: "✓", permission: ["approvals.approve", "finance.transaction.create", "finance.budget.manage"] },
   { key: "reports", href: "/modules/reports", icon: "▥", permission: ["reports.export", "finance.report.read", "business.report.read"] },
 ] as const;
 
@@ -39,6 +39,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   const adminLinks = [
     { key: "users", href: "/settings/users", permission: user.permissions.includes("*") || user.permissions.includes("settings.users.manage"), icon: "♙", label: text.users },
     { key: "roles", href: "/settings/roles", permission: user.permissions.includes("*") || user.permissions.includes("settings.roles.manage"), icon: "⚙", label: text.roles },
+    { key: "approvalWorkflows", href: "/settings/approval-workflows", permission: hasAnyPermission(user, ["approvals.configure"]), icon: "✓", label: text.approvalWorkflows },
     { key: "audit", href: "/settings/audit", permission: hasPermission(user, "audit.read"), icon: "≋", label: text.audit },
     { key: "departments", href: "/settings/departments", permission: hasPermission(user, "settings.config.manage"), icon: "▦", label: text.departments },
     { key: "configuration", href: "/settings/configuration", permission: hasPermission(user, "settings.config.manage"), icon: "⚙", label: text.configuration },

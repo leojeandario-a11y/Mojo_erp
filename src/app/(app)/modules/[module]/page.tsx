@@ -13,7 +13,7 @@ const requiredPermissions: Record<(typeof modules)[number], string[]> = {
   operations: ["operations.project.read", "operations.project.manage", "operations.task.manage"],
   projects: ["operations.project.read", "operations.project.manage"],
   store: ["store.product.read", "store.product.manage", "store.pos.sell"],
-  approvals: ["approvals.approve"],
+  approvals: ["approvals.approve", "finance.transaction.create", "finance.budget.manage"],
   reports: ["reports.export", "finance.report.read", "business.report.read"],
 };
 

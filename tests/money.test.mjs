@@ -10,6 +10,16 @@ test("converts HTG to USD and rounds to cents", () => {
   assert.equal(convertMoney("20000.00", "HTG", "USD", "132.50000000"), "150.94");
 });
 
+test("totals a USD and HTG expense consistently in either display currency", () => {
+  const usdHtgExpenseUsdCents = BigInt(convertMoney("20000.00", "HTG", "USD", "140.00000000").replace(".", ""));
+  const usdHtgExpenseHtgCents = BigInt(convertMoney("500.00", "USD", "HTG", "140.00000000").replace(".", ""));
+  const usdTotalCents = 50000n + usdHtgExpenseUsdCents;
+  const htgTotalCents = 2000000n + usdHtgExpenseHtgCents;
+
+  assert.equal(`${usdTotalCents / 100n}.${String(usdTotalCents % 100n).padStart(2, "0")}`, "642.86");
+  assert.equal(`${htgTotalCents / 100n}.${String(htgTotalCents % 100n).padStart(2, "0")}`, "90000.00");
+});
+
 test("rounds converted half-cents away from zero", () => {
   assert.equal(convertMoney("0.01", "USD", "HTG", "1.50000000"), "0.02");
   assert.equal(convertMoney("-0.01", "USD", "HTG", "1.50000000"), "-0.02");

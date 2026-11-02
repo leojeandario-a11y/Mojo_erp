@@ -1,57 +1,8 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import type { PoolClient } from "pg";
 import { getSession } from "@/lib/auth";
 import { requestIp, withDbUser } from "@/lib/db";
 import { hasEntityPermission } from "@/lib/permissions";
-
-const amountSchema = z.string().regex(/^\d{1,16}(?:\.\d{1,2})?$/);
-const budgetSchema = z.object({
-  entityId: z.uuid(),
-  name: z.string().trim().min(2).max(120),
-  fiscalYear: z.number().int().min(2000).max(2200),
-  periodType: z.enum(["annual", "monthly"]),
-  periodMonth: z.number().int().min(1).max(12).nullable(),
-  scope: z.enum(["global", "department", "project", "category"]),
-  departmentId: z.uuid().nullable(),
-  projectId: z.uuid().nullable(),
-  currency: z.enum(["HTG", "USD"]),
-  alertThresholdPct: z.string().regex(/^\d{1,3}(?:\.\d{1,2})?$/).refine((value) => Number(value) > 0),
-  lines: z.array(z.object({
-    categoryId: z.uuid().nullable(),
-    label: z.string().trim().max(120).nullable(),
-    plannedAmount: amountSchema,
-  }).strict().refine((line) => line.categoryId !== null || Boolean(line.label), {
-    message: "Each budget line needs a category or a label.",
-  })).min(1).max(100),
-}).strict().superRefine((budget, context) => {
-  if ((budget.periodType === "annual") !== (budget.periodMonth === null)) {
-    context.addIssue({ code: "custom", path: ["periodMonth"], message: "The period month does not match the period type." });
-  }
-  if ((budget.scope === "department") !== (budget.departmentId !== null)) {
-    context.addIssue({ code: "custom", path: ["departmentId"], message: "A department is required only for department budgets." });
-  }
-  if ((budget.scope === "project") !== (budget.projectId !== null)) {
-    context.addIssue({ code: "custom", path: ["projectId"], message: "A project is required only for project budgets." });
-  }
-  if (budget.scope === "category" && budget.lines.some((line) => line.categoryId === null)) {
-    context.addIssue({ code: "custom", path: ["lines"], message: "Category budgets require a category on every line." });
-  }
-});
-
-class BudgetPolicyError extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
-  }
-}
-
-async function hasBudgetPermission(client: PoolClient, entityId: string) {
-  const result = await client.query<{ allowed: boolean }>(
-    "SELECT app_has_entity_permission('finance.budget.manage', $1::uuid) AS allowed",
-    [entityId],
-  );
-  return result.rows[0]?.allowed === true;
-}
+import { budgetSchema, BudgetPolicyError, hasBudgetPermission, validateBudgetReferences } from "@/lib/finance-budgets";
 
 export async function GET(request: Request) {
   const actor = await getSession(request.headers);
@@ -101,6 +52,7 @@ export async function GET(request: Request) {
           project_name: string | null;
           currency: string;
           status: string;
+          created_by: string | null;
           alert_threshold_pct: string;
           planned_amount: string;
           actual_amount: string | null;
@@ -109,7 +61,7 @@ export async function GET(request: Request) {
         }>(
           `SELECT b.id, b.entity_id, e.name AS entity_name, b.name, b.fiscal_year,
                   b.period_type, b.period_month, b.scope, b.department_id, d.name AS department_name,
-                  b.project_id, p.name AS project_name, b.currency, b.status,
+                  b.project_id, p.name AS project_name, b.currency, b.status, b.created_by,
                   b.alert_threshold_pct::text,
                   COALESCE((SELECT SUM(bl.planned_amount) FROM budget_lines bl WHERE bl.budget_id = b.id), 0)::text AS planned_amount,
                   CASE WHEN COALESCE(actual.missing_rate_count, 0) > 0
@@ -126,7 +78,14 @@ export async function GET(request: Request) {
            LEFT JOIN projects p ON p.id = b.project_id
            LEFT JOIN LATERAL (
              SELECT SUM(
-                      CASE
+                      (CASE
+                        WHEN tx.tx_type = 'income' AND source_original.tx_type = 'expense' THEN -1
+                        WHEN tx.tx_type = 'adjustment'
+                          AND tx.adjustment_direction = 'increase'
+                          AND source_original.tx_type = 'adjustment'
+                          AND source_original.adjustment_direction = 'decrease' THEN -1
+                        ELSE 1
+                      END) * CASE
                         WHEN b.currency = 'USD' THEN tx.amount_usd
                         WHEN tx.currency = 'HTG' THEN tx.amount
                         WHEN tx.currency = 'USD' AND fx.htg_per_usd IS NOT NULL
@@ -137,6 +96,7 @@ export async function GET(request: Request) {
                       WHERE b.currency = 'HTG' AND tx.currency = 'USD' AND fx.htg_per_usd IS NULL
                     ) AS missing_rate_count
              FROM transactions tx
+             LEFT JOIN transactions source_original ON source_original.id = tx.reversal_of_id
              LEFT JOIN LATERAL (
                SELECT CASE WHEN er.from_currency = 'USD' THEN er.rate ELSE 1 / er.rate END AS htg_per_usd
                FROM exchange_rates er
@@ -147,8 +107,14 @@ export async function GET(request: Request) {
                LIMIT 1
              ) fx ON true
              WHERE tx.entity_id = b.entity_id
-               AND tx.tx_type = 'expense'
-               AND tx.status = 'validated'
+               AND (
+                 tx.tx_type = 'expense'
+                 OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'decrease')
+                 OR (tx.tx_type = 'income' AND source_original.tx_type = 'expense')
+                 OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'increase'
+                   AND source_original.tx_type = 'adjustment' AND source_original.adjustment_direction = 'decrease')
+               )
+               AND tx.status IN ('validated', 'reversed')
                AND tx.tx_date >= CASE
                  WHEN b.period_type = 'annual' THEN make_date(b.fiscal_year, 1, 1)
                  ELSE make_date(b.fiscal_year, b.period_month, 1)
@@ -157,11 +123,20 @@ export async function GET(request: Request) {
                  WHEN b.period_type = 'annual' THEN make_date(b.fiscal_year + 1, 1, 1)
                  ELSE (make_date(b.fiscal_year, b.period_month, 1) + INTERVAL '1 month')::date
                END
-               AND (b.scope <> 'department' OR tx.department_id = b.department_id)
-               AND (b.scope <> 'project' OR tx.project_id = b.project_id)
+               AND (b.scope <> 'department' OR COALESCE(tx.department_id, source_original.department_id) = b.department_id)
+               AND (b.scope <> 'project' OR COALESCE(tx.project_id, source_original.project_id) = b.project_id)
                AND (b.scope <> 'category' OR EXISTS (
                  SELECT 1 FROM budget_lines bl
-                 WHERE bl.budget_id = b.id AND bl.category_id = tx.category_id
+                 WHERE bl.budget_id = b.id AND bl.category_id = COALESCE(tx.category_id, source_original.category_id)
+               ))
+               AND (b.scope <> 'marketing' OR COALESCE(tx.department_id, source_original.department_id) = (
+                 SELECT id FROM departments WHERE code = 'MKT'
+               ))
+               AND (b.scope <> 'operations' OR COALESCE(tx.department_id, source_original.department_id) = (
+                 SELECT id FROM departments WHERE code = 'OPS'
+               ))
+               AND (b.scope <> 'hr' OR COALESCE(tx.department_id, source_original.department_id) = (
+                 SELECT id FROM departments WHERE code = 'DRH'
                ))
            ) actual ON true
            WHERE b.entity_id = ANY($1::uuid[])
@@ -188,8 +163,8 @@ export async function GET(request: Request) {
           [budgetIds],
         )
         : { rows: [] };
-      const departments = await client.query<{ id: string; name: string }>(
-        "SELECT id, name FROM departments WHERE is_active ORDER BY name",
+      const departments = await client.query<{ id: string; name: string; code: string }>(
+        "SELECT id, name, code FROM departments WHERE is_active ORDER BY name",
       );
       const projects = entityIds.length
         ? await client.query<{ id: string; entity_id: string; name: string }>(
@@ -209,6 +184,9 @@ export async function GET(request: Request) {
       return {
         budgets: budgetsResult.rows.map((budget) => ({
           ...budget,
+          canSubmitApproval: budget.status === "draft"
+            && budget.created_by === actor.id
+            && manageableEntities.includes(budget.entity_id),
           lines: linesResult.rows.filter((line) => line.budget_id === budget.id),
         })),
         entities: readable,
@@ -239,27 +217,8 @@ export async function POST(request: Request) {
       if (!await hasBudgetPermission(client, parsed.data.entityId)) {
         throw new BudgetPolicyError("Permission denied for this entity.", 403);
       }
+      await validateBudgetReferences(client, parsed.data);
       const { entityId, departmentId, projectId, lines } = parsed.data;
-      if (departmentId) {
-        const result = await client.query("SELECT 1 FROM departments WHERE id = $1 AND is_active", [departmentId]);
-        if (!result.rowCount) throw new BudgetPolicyError("The selected department is not active.", 400);
-      }
-      if (projectId) {
-        const result = await client.query("SELECT 1 FROM projects WHERE id = $1 AND entity_id = $2", [projectId, entityId]);
-        if (!result.rowCount) throw new BudgetPolicyError("The selected project is not part of this entity.", 400);
-      }
-      const categoryIds = [...new Set(lines.flatMap(({ categoryId }) => categoryId ? [categoryId] : []))];
-      if (categoryIds.length) {
-        const result = await client.query<{ id: string }>(
-          `SELECT id FROM transaction_categories
-           WHERE id = ANY($1::uuid[]) AND kind = 'expense' AND is_active
-             AND (entity_id IS NULL OR entity_id = $2)`,
-          [categoryIds, entityId],
-        );
-        if (result.rowCount !== categoryIds.length) {
-          throw new BudgetPolicyError("A selected category is not available for this entity.", 400);
-        }
-      }
 
       const budgetResult = await client.query<{ id: string }>(
         `INSERT INTO budgets(

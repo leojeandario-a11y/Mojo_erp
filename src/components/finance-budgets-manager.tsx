@@ -5,10 +5,11 @@ import type { Locale } from "@/lib/auth";
 import { translate } from "@/lib/i18n";
 import { formatMoney } from "@/lib/money.mjs";
 
-type BudgetScope = "global" | "department" | "project" | "category";
+type BudgetScope = "global" | "department" | "project" | "category" | "marketing" | "operations" | "hr";
 type PeriodType = "annual" | "monthly";
 
 interface Entity { id: string; name: string }
+interface Department extends Entity { code: string }
 interface EntityOption extends Entity { entity_id: string }
 interface CategoryOption { id: string; entity_id: string | null; name: string }
 interface BudgetLine {
@@ -28,10 +29,13 @@ interface Budget {
   period_type: PeriodType;
   period_month: number | null;
   scope: BudgetScope;
+  department_id: string | null;
   department_name: string | null;
+  project_id: string | null;
   project_name: string | null;
   currency: "HTG" | "USD";
-  status: "draft" | "pending_approval" | "approved" | "closed";
+  status: "draft" | "pending_approval" | "approved" | "rejected" | "closed";
+  canSubmitApproval: boolean;
   alert_threshold_pct: string;
   planned_amount: string;
   actual_amount: string | null;
@@ -43,7 +47,7 @@ interface BudgetData {
   budgets: Budget[];
   entities: Entity[];
   manageableEntityIds: string[];
-  departments: Entity[];
+  departments: Department[];
   projects: EntityOption[];
   categories: CategoryOption[];
 }
@@ -64,11 +68,20 @@ export function FinanceBudgetsManager({
     budgets: [], entities: [], manageableEntityIds: [], departments: [], projects: [], categories: [],
   });
   const [entityId, setEntityId] = useState("");
+  const [editingBudgetId, setEditingBudgetId] = useState("");
+  const [budgetName, setBudgetName] = useState("");
+  const [fiscalYear, setFiscalYear] = useState(String(new Date().getFullYear()));
   const [scope, setScope] = useState<BudgetScope>("global");
   const [periodType, setPeriodType] = useState<PeriodType>("annual");
+  const [periodMonth, setPeriodMonth] = useState(String(new Date().getMonth() + 1));
+  const [departmentId, setDepartmentId] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [budgetCurrency, setBudgetCurrency] = useState<"HTG" | "USD">("HTG");
+  const [alertThresholdPct, setAlertThresholdPct] = useState("90");
   const [lines, setLines] = useState<DraftLine[]>([{ categoryId: "", label: "", plannedAmount: "" }]);
   const [loading, setLoading] = useState(canRead);
   const [saving, setSaving] = useState(false);
+  const [savingBudgetId, setSavingBudgetId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -107,48 +120,112 @@ export function FinanceBudgetsManager({
 
   async function createBudget(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
     setError("");
     setNotice("");
     setSaving(true);
     try {
-      const response = await fetch("/api/v1/finance/budgets", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          entityId,
-          name: form.get("name"),
-          fiscalYear: Number(form.get("fiscalYear")),
-          periodType,
-          periodMonth: periodType === "monthly" ? Number(form.get("periodMonth")) : null,
-          scope,
-          departmentId: scope === "department" ? form.get("departmentId") : null,
-          projectId: scope === "project" ? form.get("projectId") : null,
-          currency: form.get("currency"),
-          alertThresholdPct: form.get("alertThresholdPct"),
-          lines: lines.map((line) => ({
-            categoryId: line.categoryId || null,
-            label: line.label.trim() || null,
-            plannedAmount: line.plannedAmount,
-          })),
-        }),
-      });
+      const response = await fetch(
+        editingBudgetId ? `/api/v1/finance/budgets/${editingBudgetId}` : "/api/v1/finance/budgets",
+        {
+          method: editingBudgetId ? "PUT" : "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            entityId,
+            name: budgetName,
+            fiscalYear: Number(fiscalYear),
+            periodType,
+            periodMonth: periodType === "monthly" ? Number(periodMonth) : null,
+            scope,
+            departmentId: scope === "department" ? departmentId : null,
+            projectId: scope === "project" ? projectId : null,
+            currency: budgetCurrency,
+            alertThresholdPct,
+            lines: lines.map((line) => ({
+              categoryId: line.categoryId || null,
+              label: line.label.trim() || null,
+              plannedAmount: line.plannedAmount,
+            })),
+          }),
+        },
+      );
       const body = await response.json() as ApiError;
       if (!response.ok) {
         setError(body.error ?? text("requestFailed"));
         return;
       }
-      formElement.reset();
+      const wasEditing = Boolean(editingBudgetId);
+      setEditingBudgetId("");
+      setBudgetName("");
+      setFiscalYear(String(new Date().getFullYear()));
       setPeriodType("annual");
       setScope("global");
+      setPeriodMonth(String(new Date().getMonth() + 1));
+      setDepartmentId("");
+      setProjectId("");
+      setBudgetCurrency("HTG");
+      setAlertThresholdPct("90");
       setLines([{ categoryId: "", label: "", plannedAmount: "" }]);
-      setNotice(text("budgetCreated"));
+      setNotice(text(wasEditing ? "budgetUpdated" : "budgetCreated"));
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : text("requestFailed"));
     } finally {
       setSaving(false);
+    }
+  }
+
+  function editBudget(budget: Budget) {
+    setEditingBudgetId(budget.id);
+    setEntityId(budget.entity_id);
+    setBudgetName(budget.name);
+    setFiscalYear(String(budget.fiscal_year));
+    setPeriodType(budget.period_type);
+    setPeriodMonth(String(budget.period_month ?? new Date().getMonth() + 1));
+    setScope(budget.scope);
+    setDepartmentId(budget.department_id ?? "");
+    setProjectId(budget.project_id ?? "");
+    setBudgetCurrency(budget.currency);
+    setAlertThresholdPct(budget.alert_threshold_pct);
+    setLines(budget.lines.map((line) => ({
+      categoryId: line.category_id ?? "",
+      label: line.label ?? "",
+      plannedAmount: line.planned_amount,
+    })));
+    setError("");
+    setNotice("");
+  }
+
+  function cancelBudgetEdit() {
+    setEditingBudgetId("");
+    setBudgetName("");
+    setFiscalYear(String(new Date().getFullYear()));
+    setPeriodType("annual");
+    setPeriodMonth(String(new Date().getMonth() + 1));
+    setScope("global");
+    setDepartmentId("");
+    setProjectId("");
+    setBudgetCurrency("HTG");
+    setAlertThresholdPct("90");
+    setLines([{ categoryId: "", label: "", plannedAmount: "" }]);
+  }
+
+  async function submitBudget(budgetId: string) {
+    setError("");
+    setNotice("");
+    setSavingBudgetId(budgetId);
+    try {
+      const response = await fetch(`/api/v1/finance/budgets/${budgetId}/submit-approval`, { method: "POST" });
+      const body = await response.json() as ApiError;
+      if (!response.ok) {
+        setError(body.error ?? text("requestFailed"));
+        return;
+      }
+      setNotice(text("budgetSubmitted"));
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : text("requestFailed"));
+    } finally {
+      setSavingBudgetId("");
     }
   }
 
@@ -168,6 +245,14 @@ export function FinanceBudgetsManager({
   function formatScope(budget: Budget) {
     if (budget.scope === "department") return `${text("budgetScopeDepartment")}: ${budget.department_name ?? "—"}`;
     if (budget.scope === "project") return `${text("budgetScopeProject")}: ${budget.project_name ?? "—"}`;
+    if (budget.scope === "marketing" || budget.scope === "operations" || budget.scope === "hr") {
+      const labels = {
+        marketing: "budgetScopeMarketing",
+        operations: "budgetScopeOperations",
+        hr: "budgetScopeHr",
+      } as const;
+      return text(labels[budget.scope]);
+    }
     return text(budget.scope === "category" ? "budgetScopeCategory" : "budgetScopeGlobal");
   }
 
@@ -211,7 +296,18 @@ export function FinanceBudgetsManager({
                         {budget.actual_amount === null ? "—" : formatAmount(budget.actual_amount, budget.currency)}
                         {alert && !missingRates && <span className="table-sub">{text("budgetThresholdReached")}</span>}
                       </td>
-                      <td>{text(budget.status === "pending_approval" ? "budgetPendingApproval" : `budgetStatus${budget.status[0].toUpperCase()}${budget.status.slice(1)}` as Parameters<typeof translate>[1])}</td>
+                      <td>
+                        {text(budget.status === "pending_approval" ? "budgetPendingApproval" : `budgetStatus${budget.status[0].toUpperCase()}${budget.status.slice(1)}` as Parameters<typeof translate>[1])}
+                        {budget.canSubmitApproval && <button className="table-action" type="button"
+                          onClick={() => editBudget(budget)}>
+                          {text("editBudget")}
+                        </button>}
+                        {budget.canSubmitApproval && <button className="table-action" type="button"
+                          disabled={savingBudgetId === budget.id}
+                          onClick={() => void submitBudget(budget.id)}>
+                          {savingBudgetId === budget.id ? text("saving") : text("submitForApproval")}
+                        </button>}
+                      </td>
                     </tr>
                   );
                 })}</tbody>
@@ -221,18 +317,18 @@ export function FinanceBudgetsManager({
 
           {canManage && (
             <form className="stack-form budget-form" onSubmit={(event) => void createBudget(event)}>
-              <h3>{text("createBudget")}</h3>
+              <h3>{text(editingBudgetId ? "editBudget" : "createBudget")}</h3>
               <div className="budget-fields">
-                <label>{text("entity")}<select value={entityId} onChange={(event) => setEntityId(event.target.value)} required>
+                <label>{text("entity")}<select value={entityId} onChange={(event) => setEntityId(event.target.value)} required disabled={Boolean(editingBudgetId)}>
                   {manageableEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
                 </select></label>
-                <label>{text("name")}<input name="name" required minLength={2} maxLength={120} /></label>
-                <label>{text("budgetYear")}<input name="fiscalYear" type="number" min="2000" max="2200" defaultValue={new Date().getFullYear()} required /></label>
+                <label>{text("name")}<input value={budgetName} onChange={(event) => setBudgetName(event.target.value)} required minLength={2} maxLength={120} /></label>
+                <label>{text("budgetYear")}<input value={fiscalYear} onChange={(event) => setFiscalYear(event.target.value)} type="number" min="2000" max="2200" required /></label>
                 <label>{text("budgetPeriodType")}<select value={periodType} onChange={(event) => setPeriodType(event.target.value as PeriodType)}>
                   <option value="annual">{text("budgetAnnual")}</option>
                   <option value="monthly">{text("budgetMonthly")}</option>
                 </select></label>
-                {periodType === "monthly" && <label>{text("month")}<select name="periodMonth" defaultValue={new Date().getMonth() + 1}>
+                {periodType === "monthly" && <label>{text("month")}<select value={periodMonth} onChange={(event) => setPeriodMonth(event.target.value)}>
                   {Array.from({ length: 12 }, (_, index) => (
                     <option key={index + 1} value={index + 1}>
                       {new Intl.DateTimeFormat(locale === "ht" ? "ht-HT" : locale, { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, index, 1)))}
@@ -244,17 +340,20 @@ export function FinanceBudgetsManager({
                   <option value="department">{text("budgetScopeDepartment")}</option>
                   <option value="project">{text("budgetScopeProject")}</option>
                   <option value="category">{text("budgetScopeCategory")}</option>
+                  {entityDepartments.some(({ code }) => code === "MKT") && <option value="marketing">{text("budgetScopeMarketing")}</option>}
+                  {entityDepartments.some(({ code }) => code === "OPS") && <option value="operations">{text("budgetScopeOperations")}</option>}
+                  {entityDepartments.some(({ code }) => code === "DRH") && <option value="hr">{text("budgetScopeHr")}</option>}
                 </select></label>
-                {scope === "department" && <label>{text("department")}<select name="departmentId" required>
+                {scope === "department" && <label>{text("department")}<select value={departmentId} onChange={(event) => setDepartmentId(event.target.value)} required>
                   {entityDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
                 </select></label>}
-                {scope === "project" && <label>{text("projects")}<select name="projectId" required>
+                {scope === "project" && <label>{text("projects")}<select value={projectId} onChange={(event) => setProjectId(event.target.value)} required>
                   {entityProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
                 </select></label>}
-                <label>{text("currency")}<select name="currency" defaultValue="HTG">
+                <label>{text("currency")}<select value={budgetCurrency} onChange={(event) => setBudgetCurrency(event.target.value as "HTG" | "USD")}>
                   <option value="HTG">HTG</option><option value="USD">USD</option>
                 </select></label>
-                <label>{text("budgetAlertThreshold")}<input name="alertThresholdPct" type="number" min="0.01" max="999.99" step="0.01" defaultValue="90" required /></label>
+                <label>{text("budgetAlertThreshold")}<input value={alertThresholdPct} onChange={(event) => setAlertThresholdPct(event.target.value)} type="number" min="0.01" max="999.99" step="0.01" required /></label>
               </div>
               <div className="budget-lines">
                 <div className="budget-lines-heading"><h4>{text("budgetLines")}</h4>
@@ -277,8 +376,11 @@ export function FinanceBudgetsManager({
                 ))}
               </div>
               <button className="button button-primary" type="submit" disabled={saving || !entityId || (scope === "department" && entityDepartments.length === 0) || (scope === "project" && entityProjects.length === 0)}>
-                {saving ? text("saving") : text("createBudget")}
+                {saving ? text("saving") : text(editingBudgetId ? "saveBudgetChanges" : "createBudget")}
               </button>
+              {editingBudgetId && <button className="button button-secondary" type="button" onClick={cancelBudgetEdit}>
+                {text("cancel")}
+              </button>}
             </form>
           )}
         </>

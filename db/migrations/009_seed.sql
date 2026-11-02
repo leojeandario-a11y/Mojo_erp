@@ -71,7 +71,7 @@ INSERT INTO role_permissions(role_id,permission_id)
 SELECT r.id,p.id FROM roles r, permissions p WHERE r.code='dg' AND (
   p.code LIKE '%.read' OR p.code LIKE '%.report.read' OR
   p.code IN ('approvals.approve','approvals.configure','finance.fund.approve_withdrawal','finance.fund.set_rate',
-             'finance.transaction.validate','hr.leave.approve','audit.read','reports.export'));
+             'finance.rate.manage','finance.transaction.validate','hr.leave.approve','audit.read','reports.export'));
 
 INSERT INTO role_permissions(role_id,permission_id)
 SELECT r.id,p.id FROM roles r, permissions p WHERE r.code='daf' AND (

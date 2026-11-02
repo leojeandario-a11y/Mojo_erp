@@ -35,15 +35,20 @@ export async function POST(request: Request, { params }: RouteContext) {
         tx_number: string;
         tx_date: string;
         tx_type: string;
+        adjustment_direction: string | null;
         amount: string;
         currency: string;
         fx_rate_to_usd: string;
         account_id: string;
+        category_id: string | null;
+        department_id: string | null;
+        project_id: string | null;
         status: string;
         reversal_of_id: string | null;
       }>(
-        `SELECT id, entity_id, tx_number, tx_date::text, tx_type, amount::text,
-                currency, fx_rate_to_usd::text, account_id, status, reversal_of_id
+        `SELECT id, entity_id, tx_number, tx_date::text, tx_type, adjustment_direction, amount::text,
+          currency, fx_rate_to_usd::text, account_id, category_id, department_id, project_id,
+          status, reversal_of_id
          FROM transactions
          WHERE id = $1
          FOR UPDATE`,
@@ -66,8 +71,8 @@ export async function POST(request: Request, { params }: RouteContext) {
       if (original.status !== "validated" || original.reversal_of_id !== null) {
         throw new ReversalPolicyError("Only validated original transactions can be reversed.", 409);
       }
-      if (original.tx_type !== "income" && original.tx_type !== "expense") {
-        throw new ReversalPolicyError("Only income and expense transactions can be reversed.", 409);
+      if (original.tx_type !== "income" && original.tx_type !== "expense" && original.tx_type !== "adjustment") {
+        throw new ReversalPolicyError("Only income, expense, and adjustment transactions can be reversed.", 409);
       }
 
       const account = await client.query<{
@@ -118,14 +123,20 @@ export async function POST(request: Request, { params }: RouteContext) {
          RETURNING last_value::text`,
         [original.entity_id, Number(parsed.data.date.slice(0, 4))],
       );
-      const reversalType = original.tx_type === "income" ? "expense" : "income";
+      const reversalType = original.tx_type === "adjustment"
+        ? "adjustment"
+        : original.tx_type === "income" ? "expense" : "income";
+      const reversalDirection = original.tx_type === "adjustment"
+        ? original.adjustment_direction === "increase" ? "decrease" : "increase"
+        : null;
       const reason = `Reversal of ${original.tx_number}: ${parsed.data.reason}`;
       const inserted = await client.query<{ id: string; tx_number: string; status: string }>(
         `INSERT INTO transactions (
            entity_id, tx_number, tx_date, tx_type, amount, currency, fx_rate_to_usd,
-           account_id, description, status, created_by, reversal_of_id
+           account_id, category_id, department_id, project_id, description, status, created_by,
+           reversal_of_id, adjustment_direction
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft', $10, $11)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft', $13, $14, $15)
          RETURNING id, tx_number, status`,
         [
           original.entity_id,
@@ -136,9 +147,13 @@ export async function POST(request: Request, { params }: RouteContext) {
           original.currency,
           original.fx_rate_to_usd,
           original.account_id,
+          original.category_id,
+          original.department_id,
+          original.project_id,
           reason,
           actor.id,
           original.id,
+          reversalDirection,
         ],
       );
       return inserted.rows[0];

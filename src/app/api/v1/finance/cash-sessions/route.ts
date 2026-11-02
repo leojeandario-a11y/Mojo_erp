@@ -126,6 +126,8 @@ export async function POST(request: Request) {
                CASE
                  WHEN t.tx_type IN ('income','transfer_in') THEN t.amount
                  WHEN t.tx_type IN ('expense','transfer_out') THEN -t.amount
+                 WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase' THEN t.amount
+                 WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease' THEN -t.amount
                  ELSE 0
                END
              ), 0)
@@ -133,15 +135,7 @@ export async function POST(request: Request) {
            FROM accounts a
            LEFT JOIN transactions t ON t.account_id = a.id
              AND t.tx_date < $2
-             AND (
-               t.status = 'validated'
-               OR (t.status = 'reversed' AND NOT EXISTS (
-                 SELECT 1 FROM transactions reversal
-                 WHERE reversal.reversal_of_id = t.id
-                   AND reversal.status = 'validated'
-                   AND reversal.tx_date < $2
-               ))
-             )
+             AND t.status IN ('validated', 'reversed')
            WHERE a.id = $1
            GROUP BY a.id`,
           [parsed.data.accountId, parsed.data.date],
@@ -190,12 +184,14 @@ export async function POST(request: Request) {
              CASE
                WHEN tx_type IN ('income','transfer_in') THEN amount
                WHEN tx_type IN ('expense','transfer_out') THEN -amount
+               WHEN tx_type = 'adjustment' AND adjustment_direction = 'increase' THEN amount
+               WHEN tx_type = 'adjustment' AND adjustment_direction = 'decrease' THEN -amount
                ELSE 0
              END
            ), 0)
          )::text AS balance
          FROM transactions
-         WHERE account_id = $1 AND tx_date = $2 AND status = 'validated'`,
+         WHERE account_id = $1 AND tx_date = $2 AND status IN ('validated', 'reversed')`,
         [parsed.data.accountId, parsed.data.date, session.opening_count],
       );
       const variance = await client.query<{ exceeds: boolean }>(

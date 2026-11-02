@@ -6,6 +6,8 @@ import { AccountTransfersManager } from "@/components/account-transfers-manager"
 import { FinanceCategoriesManager } from "@/components/finance-categories-manager";
 import { FinanceBudgetsManager } from "@/components/finance-budgets-manager";
 import { FinanceOperationsManager } from "@/components/finance-operations-manager";
+import { EmergencyFundManager } from "@/components/emergency-fund-manager";
+import { PurchaseRequestsManager } from "@/components/purchase-requests-manager";
 import { getSession, hasPermission } from "@/lib/auth";
 import { translate } from "@/lib/i18n";
 import { hasAnyPermission } from "@/lib/permissions";
@@ -17,6 +19,14 @@ export default async function FinancePage() {
   const canManageAccounts = hasAnyPermission(user, ["finance.account.manage"]);
   const canReadBudgets = hasAnyPermission(user, ["finance.budget.read", "finance.budget.manage"]);
   const canManageBudgets = hasAnyPermission(user, ["finance.budget.manage"]);
+  const canAccessEmergencyFund = hasAnyPermission(user, [
+    "finance.fund.read",
+    "finance.fund.contribute",
+    "finance.fund.request_withdrawal",
+    "finance.fund.approve_withdrawal",
+    "finance.fund.set_rate",
+    "finance.account.manage",
+  ]);
   const canManageRates = hasPermission(user, "finance.rate.manage");
   const canAccessTransactions = hasAnyPermission(user, [
     "finance.transaction.read",
@@ -25,7 +35,7 @@ export default async function FinancePage() {
     "finance.transaction.reverse",
   ]);
   const canCreateTransactions = hasAnyPermission(user, ["finance.transaction.create"]);
-  if (!canReadAccounts && !canManageRates && !canAccessTransactions && !canReadBudgets) redirect("/forbidden");
+  if (!canReadAccounts && !canManageRates && !canAccessTransactions && !canReadBudgets && !canAccessEmergencyFund) redirect("/forbidden");
 
   return (
     <div className="admin-page">
@@ -37,6 +47,7 @@ export default async function FinancePage() {
         </div>
       </div>
       <FinanceManager locale={user.locale} canReadAccounts={canReadAccounts} canManageRates={canManageRates} />
+      {canAccessEmergencyFund && <EmergencyFundManager locale={user.locale} />}
       <FinanceBudgetsManager locale={user.locale} canRead={canReadBudgets} canManage={canManageBudgets} />
       <FinanceCategoriesManager locale={user.locale} canManage={canManageAccounts} />
       <CashSessionsManager
@@ -46,6 +57,7 @@ export default async function FinancePage() {
       />
       <AccountTransfersManager locale={user.locale} canManage={canCreateTransactions} />
       <TransactionsManager locale={user.locale} canAccess={canAccessTransactions} canCreate={canCreateTransactions} />
+      {canCreateTransactions && <PurchaseRequestsManager locale={user.locale} />}
       <FinanceOperationsManager
         locale={user.locale}
         canAccess={canAccessTransactions}

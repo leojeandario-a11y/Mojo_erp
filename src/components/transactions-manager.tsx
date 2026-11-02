@@ -29,6 +29,7 @@ interface FinanceTransaction {
   tx_number: string;
   tx_date: string;
   tx_type: "income" | "expense" | "transfer_in" | "transfer_out" | "adjustment";
+  adjustment_direction: "increase" | "decrease" | null;
   amount: string;
   currency: "HTG" | "USD";
   status: "draft" | "pending_approval" | "validated" | "rejected" | "reversed";
@@ -36,6 +37,7 @@ interface FinanceTransaction {
   description: string | null;
   account_name: string;
   category_name: string | null;
+  documents: { id: string; fileName: string }[];
   reversal_of_id: string | null;
   canValidate: boolean;
   canSubmitApproval: boolean;
@@ -80,7 +82,8 @@ export function TransactionsManager({
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [accountId, setAccountId] = useState("");
-  const [transactionType, setTransactionType] = useState<"income" | "expense">("expense");
+  const [transactionType, setTransactionType] = useState<"income" | "expense" | "adjustment">("expense");
+  const [adjustmentDirection, setAdjustmentDirection] = useState<"increase" | "decrease">("increase");
   const [filters, setFilters] = useState<TransactionFilters>({
     from: "",
     to: "",
@@ -97,8 +100,11 @@ export function TransactionsManager({
   const [saving, setSaving] = useState(false);
   const [reversingId, setReversingId] = useState("");
   const selectedAccount = accounts.find((account) => account.id === accountId && account.is_active);
+  const categoryKind = transactionType === "adjustment"
+    ? adjustmentDirection === "increase" ? "income" : "expense"
+    : transactionType;
   const availableCategories = categories.filter((category) =>
-    category.kind === transactionType
+    category.kind === categoryKind
     && (category.entity_id === null || category.entity_id === selectedAccount?.entity_id),
   );
   const quickExpenseCategories = categories.filter((category) =>
@@ -180,6 +186,7 @@ export function TransactionsManager({
     if (!selectedAccount) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+    const supportingDocument = form.get("supportingDocument");
     setTransactionError("");
     setNotice("");
     setSaving(true);
@@ -191,6 +198,7 @@ export function TransactionsManager({
           entityId: selectedAccount.entity_id,
           accountId: selectedAccount.id,
           type: form.get("type"),
+          adjustmentDirection: form.get("type") === "adjustment" ? form.get("adjustmentDirection") : null,
           categoryId: String(form.get("categoryId") ?? "") || null,
           date: form.get("date"),
           amount: form.get("amount"),
@@ -201,9 +209,22 @@ export function TransactionsManager({
         setTransactionError(await responseError(response, text("requestFailed")));
         return;
       }
-      const result = await response.json() as { txNumber: string };
+      const result = await response.json() as { id: string; txNumber: string };
       setNotice(`${text("transactionCreated")} ${result.txNumber}`);
       formElement.reset();
+      if (supportingDocument instanceof File && supportingDocument.size > 0) {
+        const documentForm = new FormData();
+        documentForm.set("file", supportingDocument);
+        const documentResponse = await fetch(`/api/v1/finance/transactions/${result.id}/documents`, {
+          method: "POST",
+          body: documentForm,
+        });
+        if (!documentResponse.ok) {
+          setTransactionError(`${text("documentError")} ${await responseError(documentResponse, text("requestFailed"))}`);
+        } else {
+          setNotice(`${text("transactionCreated")} ${result.txNumber} ${text("documentUploaded")}`);
+        }
+      }
       await loadTransactions();
     } catch (cause) {
       setTransactionError(cause instanceof Error ? cause.message : text("requestFailed"));
@@ -310,6 +331,7 @@ export function TransactionsManager({
                   <label>{text("transactionDate")}<input name="date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
                   <label>{text("amount")}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
                   <label>{text("description")}<textarea name="description" maxLength={1000} rows={2} /></label>
+                  <label>{text("transactionDocument")}<input name="supportingDocument" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" /></label>
                   <button className="button button-primary" type="submit" disabled={!selectedAccount || saving}>
                     {saving ? text("saving") : text("createTransaction")}
                   </button>
@@ -322,20 +344,28 @@ export function TransactionsManager({
                 </option>)}
               </select></label>
               <label>{text("transactionType")}<select name="type" value={transactionType} onChange={(event) => {
-                if (event.target.value === "income" || event.target.value === "expense") {
+                if (event.target.value === "income" || event.target.value === "expense" || event.target.value === "adjustment") {
                   setTransactionType(event.target.value);
                 }
               }}>
                 <option value="expense">{text("transactionExpense")}</option>
                 <option value="income">{text("transactionIncome")}</option>
+                <option value="adjustment">{text("transactionAdjustment")}</option>
               </select></label>
-              <label>{text("financeCategories")}<select key={`${selectedAccount?.entity_id}-${transactionType}`} name="categoryId" defaultValue="">
+              {transactionType === "adjustment" && <label>{text("adjustmentDirection")}<select name="adjustmentDirection" value={adjustmentDirection} onChange={(event) => {
+                if (event.target.value === "increase" || event.target.value === "decrease") setAdjustmentDirection(event.target.value);
+              }}>
+                <option value="increase">{text("adjustmentIncrease")}</option>
+                <option value="decrease">{text("adjustmentDecrease")}</option>
+              </select></label>}
+              <label>{text("financeCategories")}<select key={`${selectedAccount?.entity_id}-${categoryKind}`} name="categoryId" defaultValue="">
                 <option value="">{availableCategories.length ? text("selectCategory") : text("noCategories")}</option>
                 {availableCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select></label>
               <label>{text("transactionDate")}<input name="date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
               <label>{text("amount")}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
               <label>{text("description")}<textarea name="description" maxLength={1000} rows={2} /></label>
+              <label>{text("transactionDocument")}<input name="supportingDocument" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" /></label>
               <button className="button button-primary" type="submit" disabled={!selectedAccount || saving}>
                 {saving ? text("saving") : text("createTransaction")}
               </button>
@@ -370,9 +400,16 @@ export function TransactionsManager({
             <tbody>{transactions.map((transaction) => (
               <Fragment key={transaction.id}>
                 <tr>
-                  <td><strong>{transaction.tx_number}</strong><span className="table-sub">{transaction.description ?? transaction.entity_name}</span></td>
+                  <td>
+                    <strong>{transaction.tx_number}</strong><span className="table-sub">{transaction.description ?? transaction.entity_name}</span>
+                    {transaction.documents.map((document) => (
+                      <a className="table-sub transaction-document-link" key={document.id} href={`/api/v1/finance/documents/${document.id}`}>{document.fileName}</a>
+                    ))}
+                  </td>
                   <td>{transaction.tx_date}</td>
-                  <td>{text(transactionTypeKey(transaction.tx_type))}</td>
+                  <td>{transaction.tx_type === "adjustment"
+                    ? `${text("transactionAdjustment")} · ${text(transaction.adjustment_direction === "increase" ? "adjustmentIncrease" : "adjustmentDecrease")}`
+                    : text(transactionTypeKey(transaction.tx_type))}</td>
                   <td>{transaction.account_name}</td>
                   <td>{transaction.category_name ?? "—"}</td>
                   <td>{formatMoney(transaction.amount, transaction.currency, locale)}</td>

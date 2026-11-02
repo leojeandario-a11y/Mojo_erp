@@ -18,6 +18,17 @@ interface NotificationData {
   notifications: NotificationItem[];
   unreadCount: number;
 }
+interface PushSettings {
+  configured: boolean;
+  publicKey: string | null;
+  subscribed: boolean;
+}
+
+function decodeApplicationServerKey(value: string) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const decoded = atob(value.replace(/-/g, "+").replace(/_/g, "/") + padding);
+  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+}
 
 export function NotificationsMenu({ locale }: { locale: Locale }) {
   const router = useRouter();
@@ -25,6 +36,9 @@ export function NotificationsMenu({ locale }: { locale: Locale }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [pushSettings, setPushSettings] = useState<PushSettings | null>(null);
+  const [deviceSubscribed, setDeviceSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   const text = useCallback((key: Parameters<typeof translate>[1]) => translate(locale, key), [locale]);
 
   const load = useCallback(async () => {
@@ -45,6 +59,80 @@ export function NotificationsMenu({ locale }: { locale: Locale }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/v1/notifications/push")
+      .then(async (response) => {
+        const body = await response.json() as PushSettings & { error?: string };
+        if (!response.ok) throw new Error(body.error ?? text("requestFailed"));
+        if (cancelled) return;
+        setPushSettings(body);
+        if (body.configured && "serviceWorker" in navigator && "PushManager" in window) {
+          const registration = await navigator.serviceWorker.ready;
+          const subscription = await registration.pushManager.getSubscription();
+          if (!cancelled) setDeviceSubscribed(subscription !== null);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : text("requestFailed"));
+        }
+      });
+    return () => { cancelled = true; };
+  }, [text]);
+
+  async function togglePush() {
+    if (!pushSettings?.publicKey || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      return;
+    }
+    setPushBusy(true);
+    setError("");
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        const response = await fetch("/api/v1/notifications/push", {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ endpoint: existing.endpoint }),
+        });
+        const body = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(body.error ?? text("requestFailed"));
+        await existing.unsubscribe();
+        setDeviceSubscribed(false);
+        setPushSettings((current) => current ? { ...current, subscribed: false } : current);
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error(text("pushPermissionDenied"));
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: decodeApplicationServerKey(pushSettings.publicKey),
+      });
+      const json = subscription.toJSON();
+      const response = await fetch("/api/v1/notifications/push", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          endpoint: subscription.endpoint,
+          keys: json.keys,
+        }),
+      });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) {
+        await subscription.unsubscribe();
+        throw new Error(body.error ?? text("requestFailed"));
+      }
+      setDeviceSubscribed(true);
+      setPushSettings((current) => current ? { ...current, subscribed: true } : current);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : text("requestFailed"));
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function openNotification(item: NotificationItem) {
     if (!item.is_read) {
@@ -87,6 +175,11 @@ export function NotificationsMenu({ locale }: { locale: Locale }) {
             <strong>{text("notifications")}</strong>
             <span>{data.unreadCount}</span>
           </div>
+          {pushSettings?.configured && "serviceWorker" in navigator && "PushManager" in window && (
+            <button className="notification-push-toggle" type="button" onClick={() => void togglePush()} disabled={pushBusy}>
+              {pushBusy ? text("saving") : text(deviceSubscribed ? "disablePushNotifications" : "enablePushNotifications")}
+            </button>
+          )}
           {error && <p className="form-error" role="alert">{error}</p>}
           {loading ? <p className="muted">{text("loading")}</p> : data.notifications.length ? (
             <div className="notification-items">

@@ -4,6 +4,12 @@ import type { PoolClient } from "pg";
 import { getSession } from "@/lib/auth";
 import { requestIp, withDbUser } from "@/lib/db";
 import { hasEntityPermission } from "@/lib/permissions";
+import {
+  createAutomaticFundContribution,
+  EmergencyFundError,
+  reverseFundAccounting,
+} from "@/lib/emergency-fund";
+import { schedulePushDeliveryAfterResponse } from "@/lib/web-push";
 
 class ValidationError extends Error {
   constructor(message: string, readonly status: number) {
@@ -61,21 +67,35 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!z.uuid().safeParse(id).success) return NextResponse.json({ error: "Invalid transaction." }, { status: 400 });
 
   try {
+    let fundContribution: {
+      id: string;
+      amount: string;
+      currency: string;
+      sourceTransactionId: string;
+    } | null = null;
+    let shouldProcessPush = false;
     await withDbUser(actor.id, requestIp(request.headers), async (client) => {
       const result = await client.query<{
+        id: string;
         entity_id: string;
         created_by: string | null;
         status: string;
         reversal_of_id: string | null;
         account_id: string;
         tx_type: string;
+        adjustment_direction: string | null;
         tx_date: string;
         amount: string;
+        currency: string;
+        fx_rate_to_usd: string;
         account_transfer_id: string | null;
+        source_table: string | null;
+        source_id: string | null;
         has_approved_expense_request: boolean;
       }>(
-        `SELECT entity_id, created_by, status, reversal_of_id, account_id, tx_type,
-                tx_date::text, amount::text, account_transfer_id,
+        `SELECT id, entity_id, created_by, status, reversal_of_id, account_id, tx_type, adjustment_direction,
+                tx_date::text, amount::text, currency, fx_rate_to_usd::text, account_transfer_id,
+                source_table, source_id,
                 EXISTS (
                   SELECT 1 FROM approval_requests ar
                   WHERE ar.request_type = 'expense' AND ar.ref_table = 'transactions'
@@ -102,12 +122,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           id: string;
           account_id: string;
           tx_type: string;
+          adjustment_direction: string | null;
           status: string;
           created_by: string | null;
           amount: string;
           tx_date: string;
         }>(
-          `SELECT id, account_id, tx_type, status, created_by, amount::text, tx_date::text
+          `SELECT id, account_id, tx_type, adjustment_direction, status, created_by, amount::text, tx_date::text
            FROM transactions WHERE account_transfer_id = $1 ORDER BY id FOR UPDATE`,
           [transaction.account_transfer_id],
         )
@@ -152,6 +173,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         id,
         account_id: transaction.account_id,
         tx_type: transaction.tx_type,
+        adjustment_direction: transaction.adjustment_direction,
         amount: transaction.amount,
         tx_date: transaction.tx_date,
       }];
@@ -170,7 +192,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         }
         const incoming = transferItems
           .filter((item) => item.account_id === account.id
-            && (item.tx_type === "income" || item.tx_type === "transfer_in"));
+            && (item.tx_type === "income" || item.tx_type === "transfer_in"
+              || (item.tx_type === "adjustment" && item.adjustment_direction === "increase")));
         if (incoming.length > 1) {
           throw new ValidationError("A transfer cannot contain multiple incoming transactions for one cash account.", 409);
         }
@@ -200,6 +223,23 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           [id, actor.id],
         );
       }
+      if (!transaction.account_transfer_id) {
+        shouldProcessPush = transaction.tx_type === "income" && transaction.reversal_of_id === null;
+        fundContribution = await createAutomaticFundContribution(client, actor.id, {
+          id,
+          entity_id: transaction.entity_id,
+          tx_type: transaction.tx_type,
+          tx_date: transaction.tx_date,
+          amount: transaction.amount,
+          currency: transaction.currency,
+          account_id: transaction.account_id,
+          fx_rate_to_usd: transaction.fx_rate_to_usd,
+          reversal_of_id: transaction.reversal_of_id,
+          account_transfer_id: transaction.account_transfer_id,
+          source_table: transaction.source_table,
+          source_id: transaction.source_id,
+        });
+      }
       if (transaction.reversal_of_id) {
         await client.query(
           `UPDATE transactions
@@ -207,12 +247,21 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
            WHERE id = $1 AND status = 'validated'`,
           [transaction.reversal_of_id],
         );
+        await reverseFundAccounting(client, actor.id, {
+          id,
+          reversal_of_id: transaction.reversal_of_id,
+          tx_date: transaction.tx_date,
+        });
       }
       await refreshDebtStatus(client, id);
     });
-    return NextResponse.json({ ok: true });
+    if (shouldProcessPush) schedulePushDeliveryAfterResponse();
+    return NextResponse.json({ ok: true, fundContribution });
   } catch (error) {
     if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    if (error instanceof EmergencyFundError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error("Unable to validate finance transaction.", error);

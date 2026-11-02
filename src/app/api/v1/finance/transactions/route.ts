@@ -5,17 +5,22 @@ import { getSession } from "@/lib/auth";
 import { requestIp, withDbUser } from "@/lib/db";
 import { hasAnyPermission, hasEntityPermission } from "@/lib/permissions";
 import { csvCell } from "@/lib/csv.mjs";
-import { invertExchangeRate } from "@/lib/money.mjs";
+import { exchangeRateToUsd } from "@/lib/finance-exchange-rates";
 
 const createTransactionSchema = z.object({
   entityId: z.uuid(),
   accountId: z.uuid(),
-  type: z.enum(["income", "expense"]),
+  type: z.enum(["income", "expense", "adjustment"]),
+  adjustmentDirection: z.enum(["increase", "decrease"]).nullable().optional(),
   date: z.iso.date(),
   amount: z.string().regex(/^\d{1,16}(?:\.\d{1,2})?$/).refine((value) => Number(value) > 0),
   categoryId: z.uuid().nullable(),
   description: z.string().trim().max(1000).nullable(),
-}).strict();
+}).strict().refine((data) =>
+  data.type === "adjustment"
+    ? data.adjustmentDirection === "increase" || data.adjustmentDirection === "decrease"
+    : data.adjustmentDirection == null,
+);
 
 const transactionFiltersSchema = z.object({
   from: z.iso.date().optional(),
@@ -50,25 +55,6 @@ async function nextTransactionNumber(client: PoolClient, entityId: string, entit
     [entityId, year],
   );
   return `${entityCode}-${year}-${result.rows[0].last_value.padStart(6, "0")}`;
-}
-
-async function exchangeRateToUsd(client: PoolClient, currency: string, date: string) {
-  if (currency === "USD") return "1.00000000";
-  const result = await client.query<{ from_currency: string; rate: string }>(
-    `SELECT from_currency, rate::text
-     FROM exchange_rates
-     WHERE rate_date <= $1
-       AND ((from_currency = 'USD' AND to_currency = 'HTG')
-         OR (from_currency = 'HTG' AND to_currency = 'USD'))
-     ORDER BY rate_date DESC, created_at DESC
-     LIMIT 1`,
-    [date],
-  );
-  const rate = result.rows[0];
-  if (!rate) {
-    throw new TransactionPolicyError(`No exchange rate is available for ${date}.`, 400);
-  }
-  return rate.from_currency === "HTG" ? rate.rate : invertExchangeRate(rate.rate);
 }
 
 export async function GET(request: Request) {
@@ -142,8 +128,14 @@ export async function GET(request: Request) {
       const where = conditions.join(" AND ");
       const transactions = await client.query(
         `SELECT t.id, t.entity_id, e.name AS entity_name, t.tx_number, t.tx_date::text,
-                t.tx_type, t.amount::text, t.currency, t.status, t.created_by, t.description,
+                t.tx_type, t.adjustment_direction, t.amount::text, t.currency, t.status, t.created_by, t.description,
                 t.reversal_of_id, a.name AS account_name, c.name AS category_name,
+                COALESCE((
+                  SELECT jsonb_agg(jsonb_build_object('id', d.id, 'fileName', d.file_name) ORDER BY d.created_at)
+                  FROM documents d
+                  WHERE d.owner_table = 'transactions' AND d.owner_id = t.id
+                    AND d.confidentiality = 'finance'
+                ), '[]'::jsonb) AS documents,
                 EXISTS (SELECT 1 FROM transactions reversal WHERE reversal.reversal_of_id = t.id) AS has_reversal,
                 EXISTS (
                   SELECT 1 FROM approval_requests ar
@@ -164,19 +156,22 @@ export async function GET(request: Request) {
         : transactions.rows;
       if (parsedFilters.data.format === "csv") {
         const content = [
-          ["number", "date", "entity", "type", "account", "category", "amount", "currency", "status", "description"]
+          ["number", "date", "entity", "type", "account", "category", "amount", "currency", "status", "description", "supporting_documents"]
             .map(csvCell).join(","),
           ...rows.map((transaction) => [
             transaction.tx_number,
             transaction.tx_date,
             transaction.entity_name,
-            transaction.tx_type,
+            transaction.tx_type === "adjustment"
+              ? `adjustment_${transaction.adjustment_direction}`
+              : transaction.tx_type,
             transaction.account_name,
             transaction.category_name,
             transaction.amount,
             transaction.currency,
             transaction.status,
             transaction.description,
+            transaction.documents.map((document: { fileName: string }) => document.fileName).join("; "),
           ].map(csvCell).join(",")),
         ].join("\r\n");
         return {
@@ -203,7 +198,7 @@ export async function GET(request: Request) {
             && transaction.created_by === actor.id
             && hasEntityPermission(actor, "finance.transaction.create", transaction.entity_id),
           canReverse: transaction.status === "validated"
-            && (transaction.tx_type === "income" || transaction.tx_type === "expense")
+            && (transaction.tx_type === "income" || transaction.tx_type === "expense" || transaction.tx_type === "adjustment")
             && transaction.reversal_of_id === null
             && !transaction.has_reversal
             && hasEntityPermission(actor, "finance.transaction.reverse", transaction.entity_id),
@@ -267,17 +262,23 @@ export async function POST(request: Request) {
       }
       const currency = accountResult.rows[0].currency;
       if (parsed.data.categoryId) {
+        const categoryKind = parsed.data.type === "adjustment"
+          ? parsed.data.adjustmentDirection === "increase" ? "income" : "expense"
+          : parsed.data.type;
         const category = await client.query(
           `SELECT id FROM transaction_categories
            WHERE id = $1 AND is_active AND kind = $2
              AND (entity_id IS NULL OR entity_id = $3)`,
-          [parsed.data.categoryId, parsed.data.type, parsed.data.entityId],
+          [parsed.data.categoryId, categoryKind, parsed.data.entityId],
         );
         if (!category.rowCount) {
           throw new TransactionPolicyError("The selected category is unavailable for this transaction.", 400);
         }
       }
       const fxRateToUsd = await exchangeRateToUsd(client, currency, parsed.data.date);
+      if (!fxRateToUsd) {
+        throw new TransactionPolicyError(`No exchange rate is available for ${parsed.data.date}.`, 400);
+      }
       const txNumber = await nextTransactionNumber(
         client,
         parsed.data.entityId,
@@ -287,9 +288,9 @@ export async function POST(request: Request) {
       const transaction = await client.query<{ id: string }>(
         `INSERT INTO transactions(
            entity_id, tx_number, tx_type, tx_date, account_id, category_id, amount, currency,
-           fx_rate_to_usd, description, status, created_by
+           fx_rate_to_usd, description, status, created_by, adjustment_direction
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8, $9::numeric, $10, 'draft', $11)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8, $9::numeric, $10, 'draft', $11, $12)
          RETURNING id`,
         [
           parsed.data.entityId,
@@ -303,6 +304,7 @@ export async function POST(request: Request) {
           fxRateToUsd,
           parsed.data.description,
           actor.id,
+          parsed.data.type === "adjustment" ? parsed.data.adjustmentDirection : null,
         ],
       );
       return { id: transaction.rows[0].id, txNumber };

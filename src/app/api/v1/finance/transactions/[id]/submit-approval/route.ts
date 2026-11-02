@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { requestIp, withDbUser } from "@/lib/db";
 import { hasEntityPermission } from "@/lib/permissions";
 import { getNextApprovalStep, getStepApproverIds, notifyApprovalUsers } from "@/lib/approvals";
+import { schedulePushDeliveryAfterResponse } from "@/lib/web-push";
 
 class SubmissionError extends Error {
   constructor(message: string, readonly status: number) {
@@ -56,10 +57,11 @@ export async function POST(
       }
       const existing = await client.query(
         `SELECT 1 FROM approval_requests
-         WHERE ref_table = 'transactions' AND ref_id = $1 AND request_type = 'expense'`,
+         WHERE ref_table = 'transactions' AND ref_id = $1
+           AND request_type = 'expense' AND status = 'pending'`,
         [id],
       );
-      if (existing.rowCount) throw new SubmissionError("This transaction already has an approval request.", 409);
+      if (existing.rowCount) throw new SubmissionError("This transaction already has a pending approval request.", 409);
 
       const workflowResult = await client.query<{ id: string }>(
         `SELECT id FROM approval_workflows
@@ -122,6 +124,7 @@ export async function POST(
       });
       return approvalRequestId;
     });
+    schedulePushDeliveryAfterResponse();
     return NextResponse.json({ id: approvalRequestId }, { status: 201 });
   } catch (error) {
     if (error instanceof SubmissionError) {

@@ -66,10 +66,12 @@ export default async function DashboardPage({
            FROM generate_series($1::int - 1, 0, -1) AS n
          )
          SELECT to_char(period.month_start, 'YYYY-MM') AS month,
-                COALESCE(sum(t.amount_usd) FILTER (WHERE t.tx_type = 'income'), 0)::text AS income_usd,
-                COALESCE(sum(t.amount_usd) FILTER (WHERE t.tx_type = 'expense'), 0)::text AS expense_usd
+                COALESCE(sum(t.amount_usd) FILTER (WHERE t.tx_type = 'income'
+                  OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase')), 0)::text AS income_usd,
+                COALESCE(sum(t.amount_usd) FILTER (WHERE t.tx_type = 'expense'
+                  OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease')), 0)::text AS expense_usd
          FROM period
-         LEFT JOIN transactions t ON t.status = 'validated'
+         LEFT JOIN transactions t ON t.status IN ('validated', 'reversed')
            AND t.tx_date >= period.month_start::date
            AND t.tx_date < (period.month_start + interval '1 month')::date
            ${entityFilter}
@@ -98,7 +100,7 @@ export default async function DashboardPage({
   });
   const text = (key: Parameters<typeof translate>[1]) => translate(user.locale, key);
   const locale = user.locale === "ht" ? "ht-HT" : user.locale === "en" ? "en-US" : "fr-FR";
-  const projectProgressUpdatedAt = new Date("2026-10-30T18:00:00Z");
+  const projectProgressUpdatedAt = new Date("2026-11-02T12:00:00Z");
   const projectProgressDate = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeZone: "UTC",
@@ -148,7 +150,7 @@ export default async function DashboardPage({
             <h2>{text("quickStart")}</h2>
             <p>{text("quickStartText")}</p>
             <div className="foundation-progress"><b>{text("currentProjectStage")}</b><small>{text("inProgress")}</small></div>
-            <p className="project-progress-date"><span>{text("lastProjectUpdate")}:</span> <time dateTime="2026-10-30">{projectProgressDate}</time></p>
+            <p className="project-progress-date"><span>{text("lastProjectUpdate")}:</span> <time dateTime="2026-11-02">{projectProgressDate}</time></p>
           </div>
         </div>
         <aside className="panel workspace-panel">

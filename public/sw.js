@@ -44,3 +44,35 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  const payload = event.data.json();
+  const title = typeof payload.title === "string" ? payload.title : "MoJo ERP";
+  const body = typeof payload.body === "string" ? payload.body : "";
+  const path = typeof payload.link === "string" && payload.link.startsWith("/") && !payload.link.startsWith("//")
+    ? payload.link
+    : "/dashboard";
+  event.waitUntil(self.registration.showNotification(title, {
+    body,
+    icon: "/icon-192.svg",
+    badge: "/icon-192.svg",
+    data: { path },
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const path = event.notification.data?.path;
+  const targetUrl = new URL(
+    typeof path === "string" && path.startsWith("/") && !path.startsWith("//") ? path : "/dashboard",
+    self.location.origin,
+  ).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+      const existing = clients.find((client) => client.url === targetUrl);
+      if (existing) return existing.focus();
+      return self.clients.openWindow(targetUrl);
+    }),
+  );
+});
