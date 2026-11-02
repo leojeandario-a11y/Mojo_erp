@@ -68,6 +68,7 @@ export function LoginForm({ locale }: { locale: Locale }) {
         <span aria-hidden="true">→</span>
       </button>
       <Link className="forgot-password-link" href={`/forgot-password?locale=${locale}`}>{text("forgotPassword")}</Link>
+      <Link className="forgot-password-link" href={`/register?locale=${locale}`}>Créer mon compte avec ma carte</Link>
       <p className="login-note">{text("restrictedAccess")}</p>
     </form>
   );

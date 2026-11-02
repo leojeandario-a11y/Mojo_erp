@@ -16,6 +16,22 @@ interface UserRow {
 interface Choice { id: string; name: string }
 interface RoleChoice { code: string; name: string }
 interface RoleAssignment { roleCode: string; entityId: string | null; entityName?: string | null }
+interface RegistrationRequest {
+  id: string;
+  full_name: string;
+  email: string;
+  status: string;
+  department: string;
+  badge_id: string;
+}
+interface AuthorizedBadge {
+  id: string;
+  badge_id: string;
+  full_name: string;
+  job_title: string | null;
+  department: string;
+  is_active: boolean;
+}
 
 export function UsersManager({ locale }: { locale: Locale }) {
   const text = (key: Parameters<typeof translate>[1]) => translate(locale, key);
@@ -32,6 +48,8 @@ export function UsersManager({ locale }: { locale: Locale }) {
   const [resetLink, setResetLink] = useState("");
   const [resetLinkUserId, setResetLinkUserId] = useState("");
   const [generatingResetLink, setGeneratingResetLink] = useState("");
+  const [registrationRequests, setRegistrationRequests] = useState<RegistrationRequest[]>([]);
+  const [authorizedBadges, setAuthorizedBadges] = useState<AuthorizedBadge[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -42,6 +60,17 @@ export function UsersManager({ locale }: { locale: Locale }) {
       setDepartments(data.departments);
       setRoles(data.roles);
       setEntities(data.entities);
+      const registrationResponse = await fetch("/api/v1/registration/admin");
+      const registrationData = await registrationResponse.json() as {
+        requests?: RegistrationRequest[];
+        badges?: AuthorizedBadge[];
+        roles?: RoleChoice[];
+      };
+      if (registrationResponse.ok) {
+        setRegistrationRequests(registrationData.requests ?? []);
+        setAuthorizedBadges(registrationData.badges ?? []);
+        if (registrationData.roles) setRoles((current) => registrationData.roles && registrationData.roles.length ? registrationData.roles : current);
+      }
     } finally {
       setLoading(false);
     }
@@ -131,6 +160,47 @@ export function UsersManager({ locale }: { locale: Locale }) {
     }
   }
 
+  async function approveRegistration(registrationId: string, roleCode: string) {
+    setError("");
+    setNotice("");
+    const response = await fetch("/api/v1/registration/admin/approve", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ requestId: registrationId, roleCodes: [roleCode] }),
+    });
+    if (!response.ok) {
+      const data = await response.json() as { error?: string };
+      setError(data.error ?? text("requestFailed"));
+      return;
+    }
+    setNotice("Inscription approuvée.");
+    await load();
+  }
+
+  async function addBadge(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const form = new FormData(event.currentTarget);
+    const response = await fetch("/api/v1/registration/admin", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        badgeId: form.get("badgeId"),
+        fullName: form.get("badgeFullName"),
+        jobTitle: form.get("jobTitle") || null,
+        departmentId: form.get("badgeDepartmentId"),
+      }),
+    });
+    const data = await response.json() as { error?: string };
+    if (!response.ok) {
+      setError(data.error ?? text("requestFailed"));
+      return;
+    }
+    event.currentTarget.reset();
+    setNotice("Carte autorisée enregistrée.");
+    await load();
+  }
+
   function toggleAssignment(
     current: RoleAssignment[],
     assignment: RoleAssignment,
@@ -167,6 +237,33 @@ export function UsersManager({ locale }: { locale: Locale }) {
 
   return (
     <div className="admin-grid">
+      <section className="panel">
+        <div className="panel-heading"><div><span className="eyebrow">BADGES AUTORISÉS</span><h2>Inscriptions</h2></div><span className="count-pill">{registrationRequests.filter((item) => item.status === "pending_approval").length}</span></div>
+        {registrationRequests.filter((item) => item.status === "pending_approval").map((item) => (
+          <div className="pending-registration" key={item.id}>
+            <strong>{item.full_name}</strong>
+            <small>{item.email} · {item.department} · {item.badge_id}</small>
+            <select aria-label="Rôle à attribuer" defaultValue="">
+              <option value="" disabled>Sélectionner un rôle</option>
+              {roles.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
+            </select>
+            <button type="button" className="table-action" onClick={(event) => {
+              const select = event.currentTarget.previousElementSibling as HTMLSelectElement;
+              if (select.value) void approveRegistration(item.id, select.value);
+              else setError("Sélectionnez un rôle.");
+            }}>Approuver</button>
+          </div>
+        ))}
+        {!registrationRequests.some((item) => item.status === "pending_approval") && <p className="muted">Aucune inscription en attente.</p>}
+        {authorizedBadges.length > 0 && <div className="tag-list">{authorizedBadges.map((badge) => <span className="tag" key={badge.id}>{badge.badge_id} · {badge.full_name}</span>)}</div>}
+        <form className="stack-form" onSubmit={addBadge}>
+          <label>Nom complet<input name="badgeFullName" required minLength={2} maxLength={160} /></label>
+          <label>ID de carte<input name="badgeId" required pattern="[A-Za-z]{3}-[A-Za-z]{3}-[0-9]{8}" placeholder="MJP-DMC-00981028" /></label>
+          <label>Fonction<input name="jobTitle" maxLength={160} /></label>
+          <label>Direction<select name="badgeDepartmentId" required defaultValue=""><option value="" disabled>Sélectionner</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label>
+          <button className="button button-secondary" type="submit">Autoriser cette carte</button>
+        </form>
+      </section>
       <section className="panel admin-list-panel">
         <div className="panel-heading"><div><span className="eyebrow">{text("usersEyebrow").toUpperCase()}</span><h2>{text("users")}</h2></div><span className="count-pill">{users.length}</span></div>
         {error && <p className="form-error" role="alert">{error}</p>}

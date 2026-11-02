@@ -76,6 +76,44 @@ export function validatePasswordResetEmailConfig(): void {
   readSmtpConfig();
 }
 
+export async function sendRegistrationOtpEmail(
+  to: string,
+  fullName: string,
+  otp: string,
+  locale: "fr" | "ht" | "en",
+): Promise<void> {
+  const { transport, from } = createPasswordResetTransport();
+  const copy = {
+    fr: {
+      subject: "Code de vérification MoJo ERP",
+      body: `Bonjour ${fullName}, utilisez ce code pour continuer votre inscription :`,
+      expiry: "Ce code expire dans 10 minutes et ne peut être demandé qu’un nombre limité de fois.",
+    },
+    ht: {
+      subject: "Kòd verifikasyon MoJo ERP",
+      body: `Bonjou ${fullName}, itilize kòd sa a pou kontinye enskripsyon ou :`,
+      expiry: "Kòd sa a ap ekspire nan 10 minit epi gen limit sou kantite demann ou ka fè.",
+    },
+    en: {
+      subject: "MoJo ERP verification code",
+      body: `Hello ${fullName}, use this code to continue your registration:`,
+      expiry: "This code expires in 10 minutes and requests are rate limited.",
+    },
+  }[locale];
+
+  try {
+    await transport.sendMail({
+      from,
+      to,
+      subject: copy.subject,
+      text: `${copy.body}\n\n${otp}\n\n${copy.expiry}`,
+      html: `<div style="font-family:Arial,sans-serif;color:#18312d"><p>${escapeHtml(copy.body)}</p><p style="font-size:28px;font-weight:700;letter-spacing:8px">${escapeHtml(otp)}</p><p>${escapeHtml(copy.expiry)}</p></div>`,
+    });
+  } finally {
+    transport.close();
+  }
+}
+
 export function createPasswordResetTransport() {
   const config = readSmtpConfig();
   const transport = nodemailer.createTransport({

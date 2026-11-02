@@ -34,7 +34,7 @@ export async function POST(
       const requestResult = await client.query<{
         id: string;
         workflow_id: string;
-        request_type: "expense" | "purchase" | "budget" | "fund_rate" | "fund_withdrawal";
+        request_type: "expense" | "purchase" | "budget" | "fund_rate" | "fund_withdrawal" | "leave";
         requester_id: string;
         title: string;
         amount_usd: string | null;
@@ -119,6 +119,21 @@ export async function POST(
             resource_status: rate.rows[0].approval_status,
             title: `${rate.rows[0].percentage}%`,
             effective_from: rate.rows[0].effective_from,
+          };
+        }
+      } else if (approvalRequest.request_type === "leave" && approvalRequest.ref_table === "leave_requests") {
+        const leave = await client.query<{ entity_id: string; status: string; reason: string }>(
+          `SELECT employee.entity_id, leave.status, leave.reason
+           FROM leave_requests leave
+           JOIN employees employee ON employee.id = leave.employee_id
+           WHERE leave.id = $1 FOR UPDATE OF leave`,
+          [approvalRequest.ref_id],
+        );
+        if (leave.rowCount) {
+          resource = {
+            entity_id: leave.rows[0].entity_id ?? approvalRequest.requester_id,
+            resource_status: leave.rows[0].status,
+            title: leave.rows[0].reason ?? approvalRequest.title,
           };
         }
       } else if (approvalRequest.request_type === "fund_withdrawal"
@@ -359,6 +374,22 @@ export async function POST(
         if (!budgetResult.rowCount) {
           throw new ApprovalError("The budget could not be marked approved.", 409);
         }
+      } else if (approval.request_type === "leave") {
+        const leaveResult = await client.query(
+          `UPDATE leave_requests SET status = 'approved'
+           WHERE id = $1 AND status = 'pending'`,
+          [approval.ref_id],
+        );
+        if (!leaveResult.rowCount) throw new ApprovalError("The leave request could not be approved.", 409);
+        await client.query(
+          `UPDATE leave_balances balance
+           SET used_days = used_days + leave.days
+           FROM leave_requests leave
+           WHERE leave.id = $1 AND balance.employee_id = leave.employee_id
+             AND balance.leave_type_id = leave.leave_type_id
+             AND balance.balance_year = EXTRACT(YEAR FROM leave.start_date)::int`,
+          [approval.ref_id],
+        );
       } else if (approval.request_type === "fund_rate") {
         const rate = await client.query<{ future_or_today: boolean }>(
           "SELECT effective_from >= CURRENT_DATE AS future_or_today FROM emergency_fund_rates WHERE id = $1",

@@ -339,12 +339,68 @@ td strong { color: #344a42; font-size: 10px; font-weight: 600; }
 
 .brand-image-lockup:focus-visible { outline: 3px solid #f57900; outline-offset: 3px; }
 
+/* Lot 7 — Ressources humaines */
+.hr-shell { display: grid; gap: 15px; }
+.hr-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hr-tabs { display: flex; gap: 5px; padding: 4px; border: 1px solid #e3e9e5; border-radius: 9px; background: #f5f7f6; }
+.hr-tabs button { min-height: 34px; padding: 0 13px; border: 0; border-radius: 6px; background: transparent; color: #718078; font-size: 10px; font-weight: 600; }
+.hr-tabs button.active { background: #fff; box-shadow: 0 1px 5px rgb(7 27 45 / 10%); color: #244b70; }
+.hr-primary-action { min-height: 40px; }
+.hr-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.hr-metrics article { min-height: 112px; padding: 18px; border: 1px solid #e5ebe7; border-radius: 9px; background: linear-gradient(145deg, #fff, #f8faf9); box-shadow: 0 7px 22px rgb(20 44 34 / 5%); }
+.hr-metrics article:first-child { border-color: #173858; background: linear-gradient(135deg, #071b2d, #244b70); color: #fff; }
+.hr-metrics span, .hr-metrics small { display: block; color: #89958f; font-size: 9px; }
+.hr-metrics article:first-child span, .hr-metrics article:first-child small { color: #c1ced9; }
+.hr-metrics strong { display: block; margin: 13px 0 5px; font-size: 28px; letter-spacing: -1px; }
+.hr-panel { padding: 18px; border: 1px solid #e3e9e5; border-radius: 9px; background: #fff; box-shadow: 0 7px 24px rgb(20 44 34 / 4%); }
+.hr-create-form, .hr-inline-form { display: grid; gap: 12px; }
+.hr-create-form .panel-heading { grid-column: 1 / -1; }
+.hr-form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.hr-form-grid label, .hr-inline-form label, .hr-document-upload label, .hr-panel > label { display: grid; gap: 7px; color: #52635c; font-size: 9px; font-weight: 700; }
+.hr-form-grid input, .hr-form-grid select, .hr-inline-form input, .hr-inline-form select, .hr-inline-form textarea, .hr-document-upload input, .hr-document-upload select, .hr-panel > label select { width: 100%; min-height: 38px; box-sizing: border-box; border: 1px solid #dde5df; border-radius: 6px; background: #fff; color: #40554d; font-size: 10px; }
+.hr-inline-form { grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; }
+.hr-inline-form h3, .hr-inline-form .hr-span-2 { grid-column: span 2; }
+.hr-inline-form textarea { padding: 10px; resize: vertical; }
+.hr-form-actions { display: flex; justify-content: flex-end; }
+.hr-two-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.hr-calendar-grid { display: grid; }
+.hr-day-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.hr-day-list article { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid #edf1ee; border-radius: 7px; background: #fafbfa; }
+.hr-day-list article > div { display: grid; gap: 4px; }
+.hr-day-list article span { color: #87948e; font-size: 8px; }
+.hr-day-list article strong { overflow: hidden; text-overflow: ellipsis; color: #40554d; font-size: 10px; white-space: nowrap; }
+.hr-day-list article small { color: #87948e; font-size: 8px; }
+.hr-status-active, .hr-status-present, .hr-status-approved { background: #eaf4ee; color: #347d55; }
+.hr-status-on_leave, .hr-status-late, .hr-status-pending { background: #fff2e4; color: #bd6515; }
+.hr-status-absent, .hr-status-rejected, .hr-status-terminated { background: #f7eaea; color: #a15757; }
+.hr-status-remote, .hr-status-permission, .hr-status-suspended { background: #edf2f7; color: #486989; }
+.hr-score { display: inline-block; min-width: 50px; padding: 5px 7px; border-radius: 10px; background: #edf5f1; color: #347d55; font-weight: 700; text-align: center; }
+.hr-document-list { display: grid; gap: 8px; margin-top: 14px; }
+.hr-document-list article { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid #edf1ee; border-radius: 7px; }
+.hr-document-list article > span { display: grid; height: 34px; place-items: center; border-radius: 6px; background: #edf1f5; color: #244b70; font-size: 8px; font-weight: 800; }
+.hr-document-list article div { min-width: 0; }
+.hr-document-list strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hr-document-list small { display: block; margin-top: 3px; color: #98a39d; }
+.hr-document-list a { color: #c05e00; font-size: 9px; font-weight: 700; }
+.hr-document-upload { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #edf1ee; }
+.hr-document-upload h3 { grid-column: 1 / -1; margin-bottom: 0; }
+.hr-timeline { display: grid; gap: 10px; }
+.hr-timeline article { position: relative; padding: 4px 0 12px 22px; border-left: 1px solid #dfe5e1; }
+.hr-timeline article::before { content: ""; position: absolute; top: 7px; left: -4px; width: 7px; height: 7px; border-radius: 50%; background: #f57900; }
+.hr-timeline span, .hr-timeline small, .hr-timeline p { display: block; color: #929d97; font-size: 9px; }
+.hr-timeline strong { display: block; margin: 4px 0; color: #40554d; font-size: 10px; }
+.hr-timeline p { margin-bottom: 3px; }
+
 @media (max-width: 1050px) {
   .sidebar { width: 213px; }
   .main-panel { margin-left: 213px; }
   .page-content { padding-right: 3%; padding-left: 3%; }
   .admin-grid { grid-template-columns: 1fr; }
   .create-user-panel { max-width: none; }
+  .hr-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hr-inline-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .hr-inline-form h3 { grid-column: 1 / -1; }
+  .hr-day-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
   .login-screen { grid-template-columns: 1fr; }
@@ -381,6 +437,13 @@ td strong { color: #344a42; font-size: 10px; font-weight: 600; }
   .quick-search input { width: 92px; }
   .exchange-rate-status { right: 15px; top: 45px; font-size: 7px; }
   .page-content { padding: 26px 15px 35px; }
+  .hr-toolbar { align-items: stretch; flex-direction: column; }
+  .hr-tabs { overflow-x: auto; }
+  .hr-tabs button { flex: 0 0 auto; }
+  .hr-primary-action { width: 100%; }
+  .hr-metrics { grid-template-columns: 1fr; }
+  .hr-form-grid, .hr-inline-form, .hr-two-column, .hr-day-list, .hr-document-upload { grid-template-columns: 1fr; }
+  .hr-inline-form h3, .hr-inline-form .hr-span-2, .hr-document-upload h3 { grid-column: 1; }
   .page-heading { align-items: flex-start; flex-direction: column; margin-bottom: 20px; }
   .today-chip { margin: 0; }
   .metric-grid { grid-template-columns: 1fr 1fr; }
