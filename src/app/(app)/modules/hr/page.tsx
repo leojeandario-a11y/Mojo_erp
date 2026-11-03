@@ -12,9 +12,6 @@ export default async function HrPage() {
   ])) redirect("/forbidden");
   return (
     <div className="admin-page">
-      <div className="page-heading">
-        <div><span className="eyebrow">MOJOPIKTURES · RH</span><h1>Gestion des ressources humaines<span className="heading-period">.</span></h1></div>
-      </div>
       <HrManager
         canManage={hasAnyPermission(user, ["hr.employee.manage", "hr.leave.approve"])}
         canManageAttendance={hasAnyPermission(user, ["hr.attendance.manage"])}

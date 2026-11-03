@@ -27,12 +27,13 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
   if (!modules.includes(module as (typeof modules)[number])) notFound();
   const user = await getSession();
   if (!user) return null;
+  if (module === "projects") redirect("/modules/operations");
   if (!requiredPermissions[module as (typeof modules)[number]].some((permission) => hasAnyPermission(user, [permission]))) redirect("/forbidden");
   if (module === "approvals") return <ApprovalsManager locale={user.locale} />;
   if (module === "business") return <BusinessManager />;
   if (module === "finance") return <FinanceManager locale={user.locale} canReadAccounts={hasAnyPermission(user, ["finance.account.manage", "*"])} canManageRates={hasAnyPermission(user, ["finance.rate.manage", "*"])} />;
   if (module === "hr") return <HrManager canManage={hasAnyPermission(user, ["hr.employee.manage", "*"])} canManageAttendance={hasAnyPermission(user, ["hr.attendance.manage", "*"])} />;
   if (module === "marketing") return <MarketingManager permissions={user.permissions} />;
-  if (module === "operations" || module === "projects") return <OperationsManager permissions={user.permissions} />;
+  if (module === "operations") return <OperationsManager permissions={user.permissions} />;
   return <div className="module-placeholder"><span className="module-placeholder-icon">✳</span><span className="eyebrow">MOJOPIKTURES · ROADMAP</span><h1>{translate(user.locale, module as (typeof modules)[number])}</h1><p>{translate(user.locale, "comingSoon")}</p><span className="phase-tag">PHASE EN PRÉPARATION</span></div>;
 }

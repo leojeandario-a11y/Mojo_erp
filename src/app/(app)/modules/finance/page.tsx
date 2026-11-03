@@ -39,13 +39,13 @@ export default async function FinancePage() {
 
   return (
     <div className="admin-page">
-      <div className="page-heading">
+      <header className="operations-header">
         <div>
           <span className="eyebrow">{translate(user.locale, "finance").toUpperCase()}</span>
-          <h1>{translate(user.locale, "financeManagement")}<span className="heading-period">.</span></h1>
+          <h1>Comptabilité & trésorerie</h1>
           <p>{translate(user.locale, "financeManagementDescription")}</p>
         </div>
-      </div>
+      </header>
       <FinanceManager locale={user.locale} canReadAccounts={canReadAccounts} canManageRates={canManageRates} />
       {canAccessEmergencyFund && <EmergencyFundManager locale={user.locale} />}
       <FinanceBudgetsManager locale={user.locale} canRead={canReadBudgets} canManage={canManageBudgets} />

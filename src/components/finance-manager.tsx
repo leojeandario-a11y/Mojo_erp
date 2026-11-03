@@ -166,7 +166,8 @@ export function FinanceManager({
   }
 
   return (
-    <div className="finance-grid">
+    <section className="finance-shell">
+      <div className="finance-grid">
       {canReadAccounts ? (
         <section className="panel finance-panel">
           <div className="panel-heading">
@@ -260,7 +261,8 @@ export function FinanceManager({
           </div>
         </section>
       ) : null}
-    </div>
+      </div>
+    </section>
   );
 }
 

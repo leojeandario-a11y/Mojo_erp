@@ -232,6 +232,10 @@ export function HrManager({ canManage, canManageAttendance }: { canManage: boole
 
   return (
     <section className="hr-shell">
+      <header className="operations-header">
+        <div><span className="eyebrow">RESSOURCES HUMAINES</span><h1>Équipe & talents</h1><p>Employés, présences, congés, paie, formations et recrutement.</p></div>
+        {!canManage && <span className="operations-access-badge">Consultation seule</span>}
+      </header>
       <div className="hr-toolbar">
         <nav className="hr-tabs" aria-label="Sections RH">
           {[["people", "Employés"], ["attendance", "Présences"], ["leaves", "Congés"], ["evaluations", "Évaluations"], ["documents", "Documents"], ["payroll", "Paie & bulletins"], ["operations", "Formations & départs"], ["talent", "Recrutement"]].map(([id, label]) =>

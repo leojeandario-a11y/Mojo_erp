@@ -17,7 +17,6 @@ const modules = [
   { key: "business", href: "/modules/business", icon: "⌁", permission: ["business.customer.read", "business.contract.read"] },
   { key: "marketing", href: "/modules/marketing", icon: "◈", permission: ["marketing.campaign.read", "marketing.campaign.manage"] },
   { key: "operations", href: "/modules/operations", icon: "⌘", permission: ["operations.project.read", "operations.project.manage", "operations.task.manage"] },
-  { key: "projects", href: "/modules/projects", icon: "▦", permission: ["operations.project.read", "operations.project.manage"] },
   { key: "store", href: "/modules/store", icon: "▤", permission: ["store.product.read", "store.product.manage", "store.pos.sell"] },
   { key: "approvals", href: "/modules/approvals", icon: "✓", permission: ["approvals.approve", "finance.transaction.create", "finance.budget.manage"] },
   { key: "reports", href: "/modules/reports", icon: "▥", permission: ["reports.export", "finance.report.read", "business.report.read"] },
