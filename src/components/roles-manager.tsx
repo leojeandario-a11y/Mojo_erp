@@ -19,23 +19,30 @@ export function RolesManager({ locale }: { locale: Locale }) {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [savingRole, setSavingRole] = useState(false);
+  const [creatingRole, setCreatingRole] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const selectedRole = roles.find((role) => role.id === selectedId);
+  const isDirty = Boolean(selectedRole && (
+    name !== selectedRole.name
+    || description !== (selectedRole.description ?? "")
+    || [...selectedPermissions].sort().join("\0") !== [...selectedRole.permissions].sort().join("\0")
+  ));
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferredRoleId?: string) => {
+    setLoading(true);
     try {
       const response = await fetch("/api/v1/roles");
-      const data = await response.json();
-      if (!response.ok) throw new Error(translate(locale, "requestFailed"));
+      const data = await response.json() as { roles: Role[]; permissions: Permission[]; error?: string };
+      if (!response.ok) throw new Error(data.error ?? translate(locale, "requestFailed"));
       setRoles(data.roles);
       setPermissions(data.permissions);
-      const initial = data.roles[0] as Role | undefined;
-      if (initial) {
-        setSelectedId((current) => current || initial.id);
-        setName((current) => current || initial.name);
-        setDescription((current) => current || initial.description || "");
-        setSelectedPermissions((current) => current.length ? current : initial.permissions);
-      }
+      const selected = data.roles.find((role) => role.id === preferredRoleId) ?? data.roles[0];
+      setSelectedId(selected?.id ?? "");
+      setName(selected?.name ?? "");
+      setDescription(selected?.description ?? "");
+      setSelectedPermissions(selected?.permissions ?? []);
     } finally {
       setLoading(false);
     }
@@ -45,15 +52,17 @@ export function RolesManager({ locale }: { locale: Locale }) {
     load().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : translate(locale, "requestFailed")));
   }, [load, locale]);
 
-  function chooseRole(role: Role, updateId = true) {
-    if (updateId) setSelectedId(role.id);
-    else setSelectedId((current) => current || role.id);
+  function chooseRole(role: Role) {
+    if (role.id === selectedId) return;
+    if (isDirty && !window.confirm(text("discardRoleChanges"))) return;
+    setSelectedId(role.id);
     setName(role.name);
     setDescription(role.description ?? "");
     setSelectedPermissions(role.permissions);
+    setError("");
+    setNotice("");
   }
 
-  const selectedRole = roles.find((role) => role.id === selectedId);
   const grouped = useMemo(() => permissions.reduce<Record<string, Permission[]>>((result, item) => {
     (result[item.module] ??= []).push(item);
     return result;
@@ -68,53 +77,62 @@ export function RolesManager({ locale }: { locale: Locale }) {
     if (!selectedRole) return;
     setError("");
     setNotice("");
-    const response = await fetch(`/api/v1/roles/${selectedRole.id}`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, description: description || null, permissions: selectedPermissions }),
-    });
-    if (!response.ok) {
-      setError(text("requestFailed"));
-      return;
+    setSavingRole(true);
+    try {
+      const response = await fetch(`/api/v1/roles/${selectedRole.id}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, description: description || null, permissions: selectedPermissions }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? text("requestFailed"));
+      setNotice(text("roleSaved"));
+      await load(selectedRole.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : text("requestFailed"));
+    } finally {
+      setSavingRole(false);
     }
-    setNotice(text("roleSaved"));
-    setRoles((current) => current.map((role) => role.id === selectedRole.id
-      ? { ...role, name, description: description || null, permissions: selectedPermissions }
-      : role));
-    await load();
   }
 
   async function createRole(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setNotice("");
-    const response = await fetch("/api/v1/roles", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: newName, description: newDescription || null, permissions: [] }),
-    });
-    if (!response.ok) {
-      setError(text("requestFailed"));
-      return;
+    setCreatingRole(true);
+    try {
+      const response = await fetch("/api/v1/roles", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: newName, description: newDescription || null, permissions: [] }),
+      });
+      const data = await response.json() as { id?: string; error?: string };
+      if (!response.ok || !data.id) throw new Error(data.error ?? text("requestFailed"));
+      setNewName("");
+      setNewDescription("");
+      setCreating(false);
+      setNotice(text("roleCreated"));
+      await load(data.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : text("requestFailed"));
+    } finally {
+      setCreatingRole(false);
     }
-    setNewName("");
-    setNewDescription("");
-    setCreating(false);
-    setNotice(text("roleCreated"));
-    await load();
   }
 
   return (
     <div className="roles-layout">
+      {error && <p className="form-error role-feedback" role="alert">{error}</p>}
+      {notice && <p className="success-message role-feedback" role="status">{notice}</p>}
       <section className="panel roles-list">
         <div className="panel-heading"><div><span className="eyebrow">{text("roleAccess").toUpperCase()}</span><h2>{text("roles")}</h2></div><span className="count-pill">{roles.length}</span></div>
-        <button type="button" className="button button-secondary" onClick={() => setCreating((current) => !current)}>{text("createRole")}</button>
+        <button type="button" className="button button-secondary" disabled={creatingRole || savingRole} onClick={() => setCreating((current) => !current)}>{text("createRole")}</button>
         {creating && <form className="stack-form role-create-form" onSubmit={createRole}>
           <label>{text("name")}<input value={newName} onChange={(event) => setNewName(event.target.value)} required minLength={2} maxLength={120} /></label>
           <label>{text("roleDescription")}<input value={newDescription} onChange={(event) => setNewDescription(event.target.value)} maxLength={500} /></label>
-          <button className="button button-primary" type="submit">{text("createRole")}</button>
+          <button className="button button-primary" type="submit" disabled={creatingRole}>{creatingRole ? text("saving") : text("createRole")}</button>
         </form>}
-        {loading ? <p className="muted">{text("loading")}</p> : roles.map((role) => <button key={role.id} className={`role-select ${role.id === selectedId ? "selected" : ""}`} onClick={() => chooseRole(role)}>
+        {loading ? <p className="muted">{text("loading")}</p> : roles.map((role) => <button type="button" key={role.id} disabled={savingRole} className={`role-select ${role.id === selectedId ? "selected" : ""}`} onClick={() => chooseRole(role)}>
           <span className="role-avatar">{role.name.slice(0, 1).toUpperCase()}</span><span><strong>{role.name}</strong><small>{role.code}</small></span><span className="role-arrow">›</span>
         </button>)}
       </section>
@@ -135,9 +153,7 @@ export function RolesManager({ locale }: { locale: Locale }) {
               onChange={() => togglePermission(permission.code)} />
           </label>)}
         </div>)}</div>
-        {notice && <p className="success-message" role="status">{notice}</p>}
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <div className="role-save-row"><span>{text("auditedChanges")}</span><button className="button button-primary" disabled={selectedRole.code === "super_admin"}>{text("saveChanges")} <span aria-hidden="true">→</span></button></div>
+        <div className="role-save-row"><span>{text("auditedChanges")}</span><button className="button button-primary" disabled={savingRole || !isDirty || selectedRole.code === "super_admin"}>{savingRole ? text("saving") : text("saveChanges")} <span aria-hidden="true">→</span></button></div>
       </form>}
     </div>
   );

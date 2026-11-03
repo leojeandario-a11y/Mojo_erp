@@ -20,6 +20,9 @@ export interface AuthUser {
   email: string;
   fullName: string;
   department: string | null;
+  registrationBadgeId: string | null;
+  hasProfilePhoto: boolean;
+  profilePhotoVersion: string;
   locale: Locale;
   displayCurrency: DisplayCurrency;
   roles: string[];
@@ -56,14 +59,20 @@ export async function getSession(requestHeaders?: Headers): Promise<AuthUser | n
         email: string;
         full_name: string;
         department: string | null;
+        registration_badge_id: string | null;
+        has_profile_photo: boolean;
+        profile_photo_version: string;
         locale: Locale;
         display_currency: DisplayCurrency;
       }>(
         `SELECT s.id AS session_id, u.id, u.email::text, u.full_name, d.name AS department,
+                badge.badge_id AS registration_badge_id,
+                (u.profile_photo_data IS NOT NULL) AS has_profile_photo, u.updated_at::text AS profile_photo_version,
                 u.locale, u.display_currency
          FROM user_sessions s
          JOIN users u ON u.id = s.user_id
          LEFT JOIN departments d ON d.id = u.department_id
+         LEFT JOIN authorized_badges badge ON badge.user_id = u.id
          WHERE s.token_hash = $1 AND s.user_id = $2
            AND s.revoked_at IS NULL AND s.expires_at > now() AND u.is_active`,
         [tokenHash, userId],
@@ -101,6 +110,9 @@ export async function getSession(requestHeaders?: Headers): Promise<AuthUser | n
         email: user.email,
         fullName: user.full_name,
         department: user.department,
+        registrationBadgeId: user.registration_badge_id,
+        hasProfilePhoto: user.has_profile_photo,
+        profilePhotoVersion: user.profile_photo_version,
         locale: user.locale,
         displayCurrency: user.display_currency,
         roles: accessResult.rows[0]?.roles ?? [],

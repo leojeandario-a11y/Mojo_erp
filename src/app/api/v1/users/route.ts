@@ -32,31 +32,36 @@ export async function GET(request: Request) {
   if (!hasPermission(actor, "settings.users.manage")) {
     return NextResponse.json({ error: "Permission denied." }, { status: 403 });
   }
-  const data = await withDbUser(actor.id, requestIp(request.headers), async (client) => {
-    const [users, departments, roles, entities] = await Promise.all([
-      client.query(
-        `SELECT u.id, u.full_name, u.email::text, u.is_active, d.name AS department,
-                COALESCE(jsonb_agg(DISTINCT jsonb_build_object(
-                  'roleCode', r.code, 'entityId', ur.entity_id, 'entityName', e.name
-                )) FILTER (WHERE r.code IS NOT NULL), '[]'::jsonb) AS role_assignments
-         FROM users u
-         LEFT JOIN departments d ON d.id = u.department_id
-         LEFT JOIN user_roles ur ON ur.user_id = u.id
-         LEFT JOIN roles r ON r.id = ur.role_id
-         LEFT JOIN entities e ON e.id = ur.entity_id
-         GROUP BY u.id, d.name
-         ORDER BY u.full_name`,
-      ),
-      client.query("SELECT id, name FROM departments WHERE is_active ORDER BY name"),
-      client.query(
-        "SELECT code, name FROM roles WHERE $1 OR code <> 'super_admin' ORDER BY name",
-        [actor.permissions.includes("*")],
-      ),
-      client.query("SELECT id, name FROM entities WHERE is_active ORDER BY name"),
-    ]);
-    return { users: users.rows, departments: departments.rows, roles: roles.rows, entities: entities.rows };
-  });
-  return NextResponse.json(data);
+  try {
+    const data = await withDbUser(actor.id, requestIp(request.headers), async (client) => {
+      const [users, departments, roles, entities] = await Promise.all([
+        client.query(
+          `SELECT u.id, u.full_name, u.email::text, u.is_active, u.department_id, d.name AS department,
+                  COALESCE(jsonb_agg(DISTINCT jsonb_build_object(
+                    'roleCode', r.code, 'entityId', ur.entity_id, 'entityName', e.name
+                  )) FILTER (WHERE r.code IS NOT NULL), '[]'::jsonb) AS role_assignments
+           FROM users u
+           LEFT JOIN departments d ON d.id = u.department_id
+           LEFT JOIN user_roles ur ON ur.user_id = u.id
+           LEFT JOIN roles r ON r.id = ur.role_id
+           LEFT JOIN entities e ON e.id = ur.entity_id
+           GROUP BY u.id, d.name
+           ORDER BY u.full_name`,
+        ),
+        client.query("SELECT id, name, is_active FROM departments ORDER BY name"),
+        client.query(
+          "SELECT code, name FROM roles WHERE $1 OR code <> 'super_admin' ORDER BY name",
+          [actor.permissions.includes("*")],
+        ),
+        client.query("SELECT id, name FROM entities WHERE is_active ORDER BY name"),
+      ]);
+      return { users: users.rows, departments: departments.rows, roles: roles.rows, entities: entities.rows };
+    });
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error("Unable to load users.", error);
+    return NextResponse.json({ error: "Unable to load users." }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -105,6 +110,13 @@ export async function POST(request: Request) {
         : { rowCount: 0 };
       if (availableEntities.rowCount !== entityIds.length) {
         throw new UserPolicyError("One or more selected entities do not exist.", 400);
+      }
+      if (parsed.data.departmentId) {
+        const department = await client.query(
+          "SELECT 1 FROM departments WHERE id = $1 AND is_active",
+          [parsed.data.departmentId],
+        );
+        if (!department.rowCount) throw new UserPolicyError("Selected department is unavailable.", 400);
       }
       const userResult = await client.query<{ id: string }>(
         `INSERT INTO users(full_name, email, password_hash, department_id)

@@ -23,7 +23,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!parsed.success) return NextResponse.json({ error: "Invalid department details." }, { status: 400 });
   try {
     await withDbUser(actor.id, requestIp(request.headers), async (client) => {
-      if (parsed.data.headUserId) {
+      const current = await client.query<{ head_user_id: string | null }>(
+        "SELECT head_user_id FROM departments WHERE id = $1 FOR UPDATE",
+        [id],
+      );
+      if (!current.rowCount) throw new Error("Department not found.");
+      if (parsed.data.headUserId && parsed.data.headUserId !== current.rows[0].head_user_id) {
         const head = await client.query("SELECT 1 FROM users WHERE id = $1 AND is_active", [parsed.data.headUserId]);
         if (!head.rowCount) throw new Error("Department head must be an active user.");
       }

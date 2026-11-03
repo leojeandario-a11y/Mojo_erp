@@ -49,8 +49,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     await withDbUser(actor.id, requestIp(request.headers), async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(1196245321, 1)");
-      const target = await client.query<{ id: string }>("SELECT id FROM users WHERE id = $1 FOR UPDATE", [id]);
+      const target = await client.query<{ id: string; department_id: string | null; is_active: boolean }>(
+        "SELECT id, department_id, is_active FROM users WHERE id = $1 FOR UPDATE",
+        [id],
+      );
       if (!target.rowCount) throw new UserPolicyError("User not found.", 404);
+
+      if (parsed.data.departmentId !== undefined && parsed.data.departmentId !== null
+        && parsed.data.departmentId !== target.rows[0].department_id) {
+        const department = await client.query(
+          "SELECT 1 FROM departments WHERE id = $1 AND is_active",
+          [parsed.data.departmentId],
+        );
+        if (!department.rowCount) throw new UserPolicyError("Selected department is unavailable.", 400);
+      }
 
       if (assignments) {
         const roleCodes = [...new Set(assignments.map(({ roleCode }) => roleCode))];
@@ -86,22 +98,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         }
       }
 
-      if (parsed.data.isActive === false || assignments?.some(({ roleCode, entityId }) => roleCode !== "super_admin" || entityId !== null)) {
+      if (assignments || parsed.data.isActive === false) {
         const currentlyAdmin = await client.query(
           `SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
            WHERE ur.user_id = $1 AND r.code = 'super_admin'`,
           [id],
         );
-        if (currentlyAdmin.rowCount && parsed.data.isActive !== true) {
-          const count = await client.query<{ count: string }>(
-            `SELECT count(DISTINCT u.id)::text AS count
+        const remainsActiveAdmin = (parsed.data.isActive ?? target.rows[0].is_active)
+          && (!assignments || assignments.some(({ roleCode, entityId }) => roleCode === "super_admin" && entityId === null));
+        if (currentlyAdmin.rowCount && !remainsActiveAdmin) {
+          const otherAdmins = await client.query(
+            `SELECT 1
              FROM users u JOIN user_roles ur ON ur.user_id = u.id
              JOIN roles r ON r.id = ur.role_id
-             WHERE u.is_active AND r.code = 'super_admin'`,
+             WHERE u.is_active AND r.code = 'super_admin' AND u.id <> $1
+             LIMIT 1`,
+            [id],
           );
-          const removesLastAdmin = parsed.data.isActive === false
-            || Boolean(assignments?.length && !assignments.some(({ roleCode, entityId }) => roleCode === "super_admin" && entityId === null));
-          if (Number(count.rows[0].count) <= 1 && removesLastAdmin) {
+          if (!otherAdmins.rowCount) {
             throw new UserPolicyError("The last active Super Administrator cannot be removed.", 400);
           }
         }

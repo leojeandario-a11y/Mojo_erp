@@ -38,7 +38,7 @@ export default async function FinancePage() {
   if (!canReadAccounts && !canManageRates && !canAccessTransactions && !canReadBudgets && !canAccessEmergencyFund) redirect("/forbidden");
 
   return (
-    <div className="admin-page">
+    <div className="admin-page operations-shell">
       <header className="operations-header">
         <div>
           <span className="eyebrow">{translate(user.locale, "finance").toUpperCase()}</span>

@@ -8,6 +8,7 @@ import { messages, translate } from "@/lib/i18n";
 import { hasAnyPermission, hasPermission } from "@/lib/permissions";
 import { BrandLogo } from "@/components/brand-logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
+import { UserAvatar } from "@/components/user-avatar";
 import { formatExchangeRate } from "@/lib/money.mjs";
 
 const modules = [
@@ -17,9 +18,9 @@ const modules = [
   { key: "business", href: "/modules/business", icon: "⌁", permission: ["business.customer.read", "business.contract.read"] },
   { key: "marketing", href: "/modules/marketing", icon: "◈", permission: ["marketing.campaign.read", "marketing.campaign.manage"] },
   { key: "operations", href: "/modules/operations", icon: "⌘", permission: ["operations.project.read", "operations.project.manage", "operations.task.manage"] },
-  { key: "store", href: "/modules/store", icon: "▤", permission: ["store.product.read", "store.product.manage", "store.pos.sell"] },
+  { key: "store", href: "/modules/store", icon: "▤", permission: ["store.product.read", "store.product.manage", "store.stock.manage", "store.pos.sell", "store.exhibitor.manage", "store.exhibitor.validate", "store.exhibitor.pay", "store.report.read", "store.finance.read", "store.pos.return", "store.pos.void", "store.pos.configure"] },
   { key: "approvals", href: "/modules/approvals", icon: "✓", permission: ["approvals.approve", "finance.transaction.create", "finance.budget.manage"] },
-  { key: "reports", href: "/modules/reports", icon: "▥", permission: ["reports.export", "finance.report.read", "business.report.read"] },
+  { key: "reports", href: "/modules/reports", icon: "▥", permission: ["finance.report.read", "hr.report.read", "business.report.read", "marketing.report.read", "operations.report.read", "store.report.read"] },
 ] as const;
 
 export function AppShell({ user, children }: { user: AuthUser; children: React.ReactNode }) {
@@ -42,10 +43,12 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
     { key: "audit", href: "/settings/audit", permission: hasPermission(user, "audit.read"), icon: "≋", label: text.audit },
     { key: "departments", href: "/settings/departments", permission: hasPermission(user, "settings.config.manage"), icon: "▦", label: text.departments },
     { key: "configuration", href: "/settings/configuration", permission: hasPermission(user, "settings.config.manage"), icon: "⚙", label: text.configuration },
-  ].filter((item) => item.permission);
+  ] as const;
+  const visibleAdminLinks = adminLinks.filter((item) => item.permission);
   const searchablePages = [
     ...visibleModules,
     { key: "profile" as const, href: "/profile", icon: "♙" },
+    ...visibleAdminLinks.map(({ key, href, icon }) => ({ key, href, icon })),
   ].filter((item) => translate(user.locale, item.key).toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()));
 
   useEffect(() => {
@@ -125,7 +128,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
               </nav>
             ) : null}
           </div>
-          {adminLinks.length > 0 ? (
+          {visibleAdminLinks.length > 0 ? (
             <div className="sidebar-admin">
               <button type="button" className="nav-section-toggle nav-section-admin" aria-expanded={adminExpanded} onClick={() => setAdminExpanded((value) => !value)}>
                 <span>{text.administration}</span>
@@ -133,7 +136,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
               </button>
               {adminExpanded ? (
                 <div className="nav-sublist">
-                  {adminLinks.map((item) => (
+                  {visibleAdminLinks.map((item) => (
                     <Link key={item.key} href={item.href} className={`nav-link ${pathname.startsWith(item.href) ? "active" : ""}`}>
                       <span className="nav-icon">{item.icon}</span>{item.label}
                     </Link>
@@ -152,7 +155,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
           </button>
           <div className="connection-status"><span /> {text.systemOnline}</div>
           <div className="sidebar-user">
-            <span className="avatar">{user.fullName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>
+            <UserAvatar fullName={user.fullName} hasPhoto={user.hasProfilePhoto} photoVersion={user.profilePhotoVersion} className="sidebar-avatar" />
             <div className="sidebar-user-copy"><strong>{user.fullName}</strong><small>{user.department ?? user.roles[0] ?? text.account}</small></div>
           </div>
         </div>
@@ -185,7 +188,9 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
               <option value="fr">FR</option><option value="ht">HT</option><option value="en">EN</option>
             </select>
             <NotificationsMenu locale={user.locale} />
-            <Link className="top-avatar" href="/profile" aria-label={text.profile} title={text.profile}>{user.fullName[0]?.toUpperCase()}</Link>
+            <Link className="top-avatar" href="/profile" aria-label={text.profile} title={text.profile}>
+              <UserAvatar fullName={user.fullName} hasPhoto={user.hasProfilePhoto} photoVersion={user.profilePhotoVersion} size={34} />
+            </Link>
           </div>
           <div className={`exchange-rate-status ${rateUnavailable ? "rate-unavailable" : ""}`} role="status">
             {rateUnavailable ? text.rateUnavailable : latestRate === null ? text.noExchangeRate
@@ -202,6 +207,7 @@ function pageTitle(pathname: string, locale: Locale): string {
   if (pathname.startsWith("/profile")) return translate(locale, "profile");
   if (pathname.startsWith("/settings/users")) return translate(locale, "users");
   if (pathname.startsWith("/settings/roles")) return translate(locale, "roles");
+  if (pathname.startsWith("/settings/approval-workflows")) return translate(locale, "approvalWorkflows");
   if (pathname.startsWith("/settings/audit")) return translate(locale, "audit");
   if (pathname.startsWith("/settings/departments")) return translate(locale, "departments");
   if (pathname.startsWith("/settings/configuration")) return translate(locale, "configuration");

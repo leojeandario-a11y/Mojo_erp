@@ -23,11 +23,12 @@ export async function POST(request: Request) {
         email: string;
         department_id: string;
         password_hash: string;
+        badge_id: string;
         otp_verified_at: Date | null;
       }>(
-        `SELECT id, full_name, email::text, department_id, password_hash, otp_verified_at
-         FROM account_registration_requests
-         WHERE id = $1 AND status = 'pending_approval'
+        `SELECT r.id, r.full_name, r.email::text, r.department_id, r.password_hash, r.badge_id, r.otp_verified_at
+         FROM account_registration_requests r
+         WHERE r.id = $1 AND r.status = 'pending_approval'
          FOR UPDATE`,
         [parsed.data.requestId],
       )).rows[0];
@@ -45,6 +46,10 @@ export async function POST(request: Request) {
         `INSERT INTO users(full_name, email, password_hash, department_id, is_active)
          VALUES ($1, $2, $3, $4, true) RETURNING id`,
         [registration.full_name, registration.email, registration.password_hash, registration.department_id],
+      );
+      await client.query(
+        "UPDATE authorized_badges SET user_id = $2 WHERE id = $1",
+        [registration.badge_id, user.rows[0].id],
       );
       for (const role of roles.rows) {
         await client.query(

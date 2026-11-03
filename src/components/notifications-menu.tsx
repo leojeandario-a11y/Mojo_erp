@@ -38,6 +38,7 @@ export function NotificationsMenu({ locale }: { locale: Locale }) {
   const [error, setError] = useState("");
   const [pushSettings, setPushSettings] = useState<PushSettings | null>(null);
   const [deviceSubscribed, setDeviceSubscribed] = useState(false);
+  const [pushSupported, setPushSupported] = useState<boolean | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
   const text = useCallback((key: Parameters<typeof translate>[1]) => translate(locale, key), [locale]);
 
@@ -62,6 +63,7 @@ export function NotificationsMenu({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     let cancelled = false;
+    setPushSupported("serviceWorker" in navigator && "PushManager" in window);
     fetch("/api/v1/notifications/push")
       .then(async (response) => {
         const body = await response.json() as PushSettings & { error?: string };
@@ -175,11 +177,13 @@ export function NotificationsMenu({ locale }: { locale: Locale }) {
             <strong>{text("notifications")}</strong>
             <span>{data.unreadCount}</span>
           </div>
-          {pushSettings?.configured && "serviceWorker" in navigator && "PushManager" in window && (
-            <button className="notification-push-toggle" type="button" onClick={() => void togglePush()} disabled={pushBusy}>
-              {pushBusy ? text("saving") : text(deviceSubscribed ? "disablePushNotifications" : "enablePushNotifications")}
-            </button>
-          )}
+          {pushSettings && (pushSettings.configured
+            ? pushSupported === false
+              ? <p className="notification-setup-notice">{text("pushUnsupported")}</p>
+              : pushSupported && <button className="notification-push-toggle" type="button" onClick={() => void togglePush()} disabled={pushBusy}>
+                {pushBusy ? text("saving") : text(deviceSubscribed ? "disablePushNotifications" : "enablePushNotifications")}
+              </button>
+            : <p className="notification-setup-notice">{text("pushNotConfigured")}</p>)}
           {error && <p className="form-error" role="alert">{error}</p>}
           {loading ? <p className="muted">{text("loading")}</p> : data.notifications.length ? (
             <div className="notification-items">

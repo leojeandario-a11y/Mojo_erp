@@ -1,7 +1,8 @@
 # MoJo ERP — Plateforme de gestion intégrée MoJoPIKtures
 
-**État : Lot 4 (Finance) ouvert/non validé; Lot 5 en cours.**
-La conception et la base du Sprint 0 sont livrées. Le socle Next.js comprend l’authentification, les préférences, le tableau de bord et l’administration. Les fonctions Finance ont été testées fictivement, mais les critères métier et l’acceptation du Lot 4 restent à compléter. Le propriétaire a autorisé le démarrage du Lot 5 en parallèle, sans valider le Lot 4.
+**État : Lots 16 et 17 en cours, non validés.** Les lots antérieurs restent soumis
+aux états et prérequis consignés dans [`INSTRUCTION.md`](./INSTRUCTION.md).
+La conception et la base du Sprint 0 sont livrées. Le socle Next.js comprend l’authentification, les préférences, le tableau de bord et l’administration. Les états, recettes, prérequis et blocages de chaque lot sont suivis dans [`INSTRUCTION.md`](./INSTRUCTION.md); aucun lot n’est validé par la seule présence de code ou de tests automatisés.
 
 ## Contenu du projet
 
@@ -72,6 +73,14 @@ docker compose up -d --build app
 
 Un Super Administrator peut aussi générer un lien unique valable une heure depuis **Administration → Utilisateurs** et le transmettre à l’utilisateur par un canal sûr. Le lien apparaît une seule fois dans l’interface; traitez-le comme un secret. Ce mécanisme ne dépend pas de SMTP, contrairement à la demande de réinitialisation par e-mail.
 
+Pour une récupération locale lorsque SMTP n’est pas disponible, PowerShell 7 peut lancer le script d’urgence :
+
+```powershell
+pwsh -NoProfile -File .\scripts\reset_password.ps1
+```
+
+Exécutez-le depuis un poste de confiance avec l’application saine sur `127.0.0.1:3000` et le `.env` local configuré pour `mojo_erp`. Le script vérifie la base cible, demande l’adresse du compte actif et requiert de saisir `RESET` pour confirmer. Le nouveau mot de passe est saisi deux fois dans des invites masquées; il n’est ni placé dans les arguments ni écrit dans un fichier. Le script crée un jeton à usage unique de dix minutes, appelle l’endpoint normal de réinitialisation, journalise l’opération et révoque les sessions existantes. Il ne fonctionne pas sur une base différente de `mojo_erp`; ne l’exécutez que si vous autorisez explicitement cette réinitialisation.
+
 ## Administration (Lot 3)
 
 - **Utilisateurs** : affectez chaque rôle globalement ou à une entité; les permissions liées à une entité doivent être vérifiées avec l’entité cible dans les services métier.
@@ -107,6 +116,44 @@ Un Super Administrator peut aussi générer un lien unique valable une heure dep
 
 Utilisez une URL absolue pour `APP_BASE_URL`. En production, elle doit utiliser HTTPS; HTTP est accepté uniquement pour les adresses locales `localhost`, `127.0.0.1` ou `::1`. `SMTP_USER` et `SMTP_PASSWORD` doivent être définis ensemble. Sans identifiants ou adresse d’expéditeur valide, les demandes de récupération restent indisponibles et un message explicite est affiché.
 
+## Rapports et analytique (Lot 16 — en cours)
+
+Le centre de rapports rassemble Finance, RH, Affaires, Marketing, Opérations et Store. Les requêtes sont filtrées par période et entité avec les permissions de lecture propres à chaque module; les résultats sont plafonnés à 1 000 lignes. Les montants RH sont agrégés, les montants d’Affaires restent groupés par devise, et Marketing/Opérations n’affichent les dépenses que si l’utilisateur peut lire les transactions Finance. L’export XLSX et l’impression navigateur (enregistrement PDF depuis le dialogue d’impression) sont disponibles.
+
+Les six catégories ont répondu HTTP 200 lors des contrôles authentifiés, sur une période sans lignes; les données métier, la recette visuelle complète et l’acceptation restent à vérifier. Les planifications sont désactivées tant que la migration `034_lot16_scheduled_reports.sql` n’a pas été appliquée avec un rôle propriétaire de la base. L’application n’a pas les privilèges requis pour appliquer cette migration.
+
+## Sauvegardes chiffrées (Lot 17 — non validé)
+
+Le service de sauvegarde Compose en clair dans `./backups` a été remplacé par un profil ponctuel `encrypted-backup`. Le flux proposé exporte une archive PostgreSQL, la chiffre en streaming avec AES-256-GCM, vérifie son authenticité et son format, puis publie le fichier chiffré sur un répertoire hôte monté. Il n’efface pas automatiquement les anciennes sauvegardes. Configurez un véritable stockage hors hôte et définissez `MOJO_BACKUP_OFFSITE_HOST_PATH` dans `.env`; gardez la clé de 32 octets hors du dépôt et dans un gestionnaire de secrets.
+
+Générez une clé une seule fois et conservez-la de façon sûre; la perte de cette clé rend les archives irrécupérables :
+
+```powershell
+node -p "require('node:crypto').randomBytes(32).toString('hex')"
+$env:MOJO_BACKUP_ENCRYPTION_KEY = '<clé hexadécimale de 64 caractères conservée dans un coffre sûr>'
+$env:MOJO_BACKUP_OFFSITE_HOST_PATH = 'X:\MoJo-Backups'
+docker compose --profile encrypted-backup run --rm --build backup
+```
+
+Le chemin `X:\MoJo-Backups` doit être un volume hors hôte réellement monté et accessible à Docker Desktop; il ne doit pas pointer vers le dépôt ni vers un volume local non sauvegardé. Planifiez la commande ponctuelle avec le planificateur du système; aucune tâche automatique ni politique de rétention n’est configurée.
+
+Pour contrôler une archive, définissez la même clé et le même chemin, puis exécutez :
+
+```powershell
+docker compose --profile encrypted-backup run --rm --entrypoint node backup `
+  /app/scripts/restore-encrypted.mjs --verify /offsite/<nom-de-l-archive>.dump.enc
+```
+
+Un essai de restauration isolé exige `MOJO_RESTORE_TEST_DATABASE` avec un nom neuf se terminant par `_restore_test` et un compte PostgreSQL autorisé à créer une base :
+
+```powershell
+$env:MOJO_RESTORE_TEST_DATABASE = 'mojo_restore_test'
+docker compose --profile encrypted-backup run --rm --entrypoint node backup `
+  /app/scripts/restore-encrypted.mjs --restore /offsite/<nom-de-l-archive>.dump.enc
+```
+
+Le script refuse la base source, conserve la base d’essai pour vérification manuelle et ne la supprime pas. La restauration réelle, la durée de reprise, le stockage hors hôte et la construction du conteneur ne sont pas encore validés. Ne déployez pas sur la foi de ces scripts seuls.
+
 ## Développement local
 
 Prérequis : Node.js 20.9+ et PostgreSQL 15+.
@@ -133,7 +180,7 @@ npm run build
 - Les sessions et changements d’accès sont enregistrés en base; l’application configure `app.user_id` dans chaque transaction utilisateur pour la RLS et l’audit.
 - Les modules métiers non encore livrés affichent un écran d’attente et ne sont visibles qu’aux utilisateurs autorisés.
 - La récupération du mot de passe par e-mail utilise SMTP configurable par environnement; elle reste inactive tant que le SMTP n’est pas configuré.
-- Testez la restauration des sauvegardes avant toute mise en production.
+- La sauvegarde chiffrée et la restauration isolée sont encore à configurer et à tester avant toute mise en production; consultez les sections Lot 16 et Lot 17 de [`INSTRUCTION.md`](./INSTRUCTION.md).
 - La durée de session et le nombre d’échecs de connexion proviennent de `app_settings`.
 
 Les décisions métier encore ouvertes (seuils DG, pourcentage et base du fonds d’urgence, taux de change et règles de paie) figurent dans les documents de conception.

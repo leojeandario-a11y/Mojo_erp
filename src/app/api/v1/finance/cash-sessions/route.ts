@@ -20,7 +20,7 @@ class CashSessionError extends Error {
 export async function GET(request: Request) {
   const actor = await getSession(request.headers);
   if (!actor) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  if (!hasAnyPermission(actor, ["finance.transaction.read", "finance.transaction.create", "finance.account.manage"])) {
+  if (!hasAnyPermission(actor, ["finance.transaction.read", "finance.transaction.create", "finance.account.manage", "store.pos.sell"])) {
     return NextResponse.json({ error: "Permission denied." }, { status: 403 });
   }
   const requestedDate = new URL(request.url).searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
@@ -61,7 +61,8 @@ export async function GET(request: Request) {
       );
       return {
         accounts: accounts.rows.filter(({ entity_id }) =>
-          hasEntityPermission(actor, "finance.transaction.read", entity_id)
+          hasEntityPermission(actor, "store.pos.sell", entity_id)
+          || hasEntityPermission(actor, "finance.transaction.read", entity_id)
           || hasEntityPermission(actor, "finance.transaction.create", entity_id)
           || hasEntityPermission(actor, "finance.account.manage", entity_id),
         ),
@@ -96,14 +97,20 @@ export async function POST(request: Request) {
       );
       if (!accountResult.rowCount) throw new CashSessionError("Cash account not found.", 404);
       const account = accountResult.rows[0];
-      if (!hasEntityPermission(actor, "finance.transaction.create", account.entity_id)) {
-        throw new CashSessionError("Permission denied for this entity.", 403);
-      }
-      const permission = await client.query<{ allowed: boolean }>(
-        "SELECT app_has_entity_permission('finance.transaction.create', $1::uuid) AS allowed",
+      const storeEntity = await client.query<{ id: string }>(
+        "SELECT id FROM entities WHERE code='STORE' AND is_active",
+      );
+      const isStoreCashier = storeEntity.rows[0]?.id === account.entity_id
+        && hasEntityPermission(actor, "store.pos.sell", account.entity_id);
+      const isFinanceOperator = hasEntityPermission(actor, "finance.transaction.create", account.entity_id);
+      const permissions = await client.query<{ finance_allowed: boolean; store_allowed: boolean }>(
+        `SELECT app_has_entity_permission('finance.transaction.create', $1::uuid) AS finance_allowed,
+                app_has_entity_permission('store.pos.sell', $1::uuid) AS store_allowed`,
         [account.entity_id],
       );
-      if (!permission.rows[0]?.allowed) {
+      const permitted = (isFinanceOperator && permissions.rows[0]?.finance_allowed)
+        || (isStoreCashier && permissions.rows[0]?.store_allowed);
+      if (!permitted) {
         throw new CashSessionError("Permission denied for this entity.", 403);
       }
       if (account.account_type !== "cash" || !account.is_active) {

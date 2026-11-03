@@ -55,14 +55,25 @@ services:
       - "127.0.0.1:3000:3000"
 
   backup:
-    image: postgres:16
+    profiles: ["encrypted-backup"]
+    build:
+      context: .
+      dockerfile: scripts/backup.Dockerfile
     depends_on:
       db: { condition: service_healthy }
     environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-mojo_erp}
+      PGUSER: ${POSTGRES_USER:-mojo_admin}
       PGPASSWORD: ${POSTGRES_PASSWORD}
+      MOJO_BACKUP_ENCRYPTION_KEY: ${MOJO_BACKUP_ENCRYPTION_KEY:-}
+      MOJO_BACKUP_OFFSITE_DIR: /offsite
+      MOJO_BACKUP_OFFSITE_HOST_PATH: ${MOJO_BACKUP_OFFSITE_HOST_PATH:-}
     volumes:
-      - ./backups:/backups
-    entrypoint: ["bash","-c","while true; do pg_dump -h db -U ${POSTGRES_USER:-mojo_admin} -Fc ${POSTGRES_DB:-mojo_erp} > /backups/mojo_$$(date +%F_%H%M).dump; find /backups -name '*.dump' -mtime +14 -delete; sleep 86400; done"]
+      - type: bind
+        source: ${MOJO_BACKUP_OFFSITE_HOST_PATH:-./backups}
+        target: /offsite
 
 volumes:
   pgdata:

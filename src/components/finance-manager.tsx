@@ -200,34 +200,51 @@ export function FinanceManager({
           {entities.length > 0 ? (
             <form key={selected?.id ?? "new-account"} className="stack-form finance-form" onSubmit={saveAccount}>
               <div className="panel-heading"><div><span className="eyebrow">{selected ? text("editAccount").toUpperCase() : text("createFinanceAccount").toUpperCase()}</span><h2>{selected?.name ?? text("createFinanceAccount")}</h2></div></div>
-              {!selected && <label>{text("entity")}<select name="entityId" required defaultValue={newEntityId}>
-                {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
-              </select></label>}
-              <label>{text("accountName")}<input name="name" required minLength={2} maxLength={120} defaultValue={selected?.name ?? ""} /></label>
-              <label>{text("accountType")}<select name="accountType" defaultValue={selected?.account_type ?? "cash"}>
-                <option value="cash">{text("cashAccount")}</option>
-                <option value="bank">{text("bankAccount")}</option>
-                <option value="mobile_money">{text("mobileMoneyAccount")}</option>
-                <option value="other">{text("otherAccount")}</option>
-              </select></label>
-              <label>{text("currency")}<select name="currency" defaultValue={selected?.currency ?? "HTG"}>
-                <option value="HTG">HTG</option><option value="USD">USD</option>
-              </select></label>
-              <label>{text("bankName")}<input name="bankName" maxLength={120} defaultValue={selected?.bank_name ?? ""} /></label>
-              <label>{text("maskedAccountNumber")}<input name="accountNumberMasked" maxLength={80} defaultValue={selected?.account_number_masked ?? ""} /></label>
-              <label>{text("cashCeiling")}<input name="cashCeiling" type="number" min="0.01" step="0.01" defaultValue={selected?.cash_ceiling ?? ""} />
-                <small>{text("cashControlsHint")}</small>
-              </label>
-              <label>{text("cashVarianceTolerance")}<input name="cashVarianceTolerance" type="number" min="0" step="0.01" defaultValue={selected?.cash_variance_tolerance ?? ""} /></label>
-              <label>{text("openingBalance")}<input name="openingBalance" type="number" step="0.01" defaultValue={selected?.opening_balance ?? "0"} required />
-                {!selected && <small>{text("openingBalanceHint")}</small>}
-              </label>
-              {selected && <label>{text("state")}<select name="isActive" defaultValue={String(selected.is_active)}>
-                <option value="true">{text("active")}</option><option value="false">{text("inactive")}</option>
-              </select></label>}
+              <fieldset className="finance-form-section">
+                <legend>{text("accountDetails")}</legend>
+                <div className="finance-form-grid">
+                  {!selected && <label>{text("entity")}<select name="entityId" required defaultValue={newEntityId}>
+                    {entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
+                  </select></label>}
+                  <label>{text("accountName")}<input name="name" required minLength={2} maxLength={120} defaultValue={selected?.name ?? ""} /></label>
+                  <label>{text("accountType")}<select name="accountType" defaultValue={selected?.account_type ?? "cash"}>
+                    <option value="cash">{text("cashAccount")}</option>
+                    <option value="bank">{text("bankAccount")}</option>
+                    <option value="mobile_money">{text("mobileMoneyAccount")}</option>
+                    <option value="other">{text("otherAccount")}</option>
+                  </select></label>
+                  <label>{text("currency")}<select name="currency" defaultValue={selected?.currency ?? "HTG"}>
+                    <option value="HTG">HTG</option><option value="USD">USD</option>
+                  </select></label>
+                </div>
+              </fieldset>
+              <fieldset className="finance-form-section">
+                <legend>{text("bankInformation")}</legend>
+                <div className="finance-form-grid">
+                  <label>{text("bankName")}<input name="bankName" maxLength={120} defaultValue={selected?.bank_name ?? ""} /></label>
+                  <label>{text("maskedAccountNumber")}<input name="accountNumberMasked" maxLength={80} defaultValue={selected?.account_number_masked ?? ""} /></label>
+                  <label>{text("openingBalance")}<input name="openingBalance" type="number" step="0.01" defaultValue={selected?.opening_balance ?? "0"} required />
+                    {!selected && <small>{text("openingBalanceHint")}</small>}
+                  </label>
+                  {selected && <label>{text("state")}<select name="isActive" defaultValue={String(selected.is_active)}>
+                    <option value="true">{text("active")}</option><option value="false">{text("inactive")}</option>
+                  </select></label>}
+                </div>
+              </fieldset>
+              <fieldset className="finance-form-section">
+                <legend>{text("cashControls")}</legend>
+                <div className="finance-form-grid">
+                  <label>{text("cashCeiling")}<input name="cashCeiling" type="number" min="0.01" step="0.01" defaultValue={selected?.cash_ceiling ?? ""} />
+                    <small>{text("cashControlsHint")}</small>
+                  </label>
+                  <label>{text("cashVarianceTolerance")}<input name="cashVarianceTolerance" type="number" min="0" step="0.01" defaultValue={selected?.cash_variance_tolerance ?? ""} /></label>
+                </div>
+              </fieldset>
               {accountError && <p className="form-error" role="alert">{accountError}</p>}
-              <button className="button button-primary" type="submit">{text(selected ? "saveChanges" : "createFinanceAccount")}</button>
-              {selected && <button className="button button-secondary" type="button" onClick={() => setSelectedId("")}>{text("cancel")}</button>}
+              <div className="finance-form-actions">
+                {selected && <button className="button button-secondary" type="button" onClick={() => setSelectedId("")}>{text("cancel")}</button>}
+                <button className="button button-primary" type="submit">{text(selected ? "saveChanges" : "createFinanceAccount")}</button>
+              </div>
             </form>
           ) : null}
         </section>
@@ -238,14 +255,21 @@ export function FinanceManager({
             <div><span className="eyebrow">{text("finance").toUpperCase()}</span><h2>{text("exchangeRates")}</h2></div>
             <span className="count-pill">{rates.length}</span>
           </div>
-          <form className="stack-form finance-form" onSubmit={saveRate}>
-            <label>{text("rateDate")}<input name="rateDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
-            <label>{text("fromCurrency")}<select name="fromCurrency" defaultValue="USD"><option value="USD">USD</option><option value="HTG">HTG</option></select></label>
-            <label>{text("toCurrency")}<select name="toCurrency" defaultValue="HTG"><option value="HTG">HTG</option><option value="USD">USD</option></select></label>
-            <label>{text("rate")}<input name="rate" type="number" min="0.00000001" step="0.00000001" required /></label>
+          <form className="finance-rate-form" onSubmit={saveRate}>
+            <fieldset className="finance-form-section">
+              <legend>{text("exchangeRateDetails")}</legend>
+              <div className="finance-form-grid finance-rate-fields">
+                <label>{text("rateDate")}<input name="rateDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
+                <label>{text("fromCurrency")}<select name="fromCurrency" defaultValue="USD"><option value="USD">USD</option><option value="HTG">HTG</option></select></label>
+                <label>{text("toCurrency")}<select name="toCurrency" defaultValue="HTG"><option value="HTG">HTG</option><option value="USD">USD</option></select></label>
+                <label>{text("rate")}<input name="rate" type="number" min="0.00000001" step="0.00000001" required /></label>
+              </div>
+            </fieldset>
             {rateError && <p className="form-error" role="alert">{rateError}</p>}
             {rateNotice && <p className="success-message" role="status">{rateNotice}</p>}
-            <button className="button button-primary" type="submit">{text("saveExchangeRate")}</button>
+            <div className="finance-form-actions">
+              <button className="button button-primary" type="submit">{text("saveExchangeRate")}</button>
+            </div>
           </form>
           <div className="finance-rate-list">
             <div className="panel-heading"><div><span className="eyebrow">{text("history").toUpperCase()}</span></div></div>

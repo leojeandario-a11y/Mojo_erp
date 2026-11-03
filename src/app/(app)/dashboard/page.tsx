@@ -100,20 +100,36 @@ export default async function DashboardPage({
   });
   const text = (key: Parameters<typeof translate>[1]) => translate(user.locale, key);
   const locale = user.locale === "ht" ? "ht-HT" : user.locale === "en" ? "en-US" : "fr-FR";
-  const projectProgressUpdatedAt = new Date("2026-11-02T12:00:00Z");
-  const projectProgressDate = new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeZone: "UTC",
-  }).format(projectProgressUpdatedAt);
   const currency = (amount: string) => new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 2,
   }).format(Number(amount));
+  const compactCurrency = (amount: number) => new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(amount);
+  const incomeTotal = metrics.trend.reduce((total, row) => total + Number(row.income_usd), 0);
+  const expenseTotal = metrics.trend.reduce((total, row) => total + Number(row.expense_usd), 0);
+  const netTotal = incomeTotal - expenseTotal;
+  const maxTrendValue = Math.max(0, ...metrics.trend.flatMap((row) => [
+    Number(row.income_usd),
+    Number(row.expense_usd),
+  ]));
+  const stepMagnitude = maxTrendValue > 0 ? 10 ** Math.floor(Math.log10(maxTrendValue / 4)) : 1;
+  const rawStep = maxTrendValue / 4 / stepMagnitude;
+  const chartStep = stepMagnitude * (rawStep <= 1 ? 1 : rawStep <= 2 ? 2 : rawStep <= 5 ? 5 : 10);
+  const chartMaximum = chartStep * 4;
+  const chart = { width: 760, left: 60, right: 746, top: 20, bottom: 220 };
+  const plotHeight = chart.bottom - chart.top;
+  const plotWidth = chart.right - chart.left;
+  const departmentMaximum = Math.max(1, ...metrics.departments.map((department) => Number(department.active_users)));
 
   return (
     <div className="dashboard-page">
-      <div className="page-heading">
+      <header className="page-heading dashboard-hero">
         <div><span className="eyebrow">{text("organizationSpace").toUpperCase()}</span><h1>{text("welcome")}, {user.fullName.split(" ")[0]}<span className="heading-period">.</span></h1><p>{text("overview")}</p></div>
         <div className="dashboard-controls">
           <div className="today-chip"><span className="today-dot" /> {new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(new Date())}</div>
@@ -126,38 +142,89 @@ export default async function DashboardPage({
             <button className="button button-secondary" type="submit">{text("applyFilters")}</button>
           </form>
         </div>
-      </div>
+      </header>
       <section className="metric-grid" aria-label={text("keyIndicators")}>
         <article className="metric-card metric-primary"><div className="metric-top"><span>{text("activeUsers")}</span><span className="metric-icon">♙</span></div><strong>{metrics.users}</strong><small>{text(globalDashboard ? "directoryNote" : "departmentUsersNote")}</small><div className="metric-decoration" /></article>
         <article className="metric-card"><div className="metric-top"><span>{text("pendingApprovals")}</span><span className="metric-icon icon-amber">◷</span></div><strong>{metrics.approvals}</strong><small>{text("requestsNote")}</small><div className="metric-bottom"><span className="metric-line" /></div></article>
-        <article className="metric-card metric-light"><div className="metric-top"><span>{text("financeAccess")}</span><span className="metric-icon icon-green">↗</span></div><strong>{canReadFinance ? "✓" : "—"}</strong><small>{text(canReadFinance ? "authorized" : "permissionBased")}</small></article>
+        <article className="metric-card metric-light"><div className="metric-top"><span>{text(canReadFinance ? "netCashFlow" : "financeAccess")}</span><span className="metric-icon icon-green">↗</span></div><strong>{canReadFinance ? currency(String(netTotal)) : "—"}</strong><small>{text(canReadFinance ? "validatedCashFlow" : "permissionBased")}</small></article>
       </section>
-      {metrics.trend.length > 0 && <section className="panel dashboard-trend-panel">
-        <div className="panel-heading"><div><span className="eyebrow">{text("finance").toUpperCase()}</span><h2>{text("validatedCashFlow")}</h2></div><span className="count-pill">{months} {text(months === 1 ? "monthShort" : "monthsShort")}</span></div>
-        <div className="table-scroll"><table><thead><tr><th>{text("month")}</th><th>{text("income")}</th><th>{text("expense")}</th></tr></thead>
-          <tbody>{metrics.trend.map((row) => <tr key={row.month}><td>{new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(new Date(`${row.month}-01T12:00:00`))}</td><td>{currency(row.income_usd)}</td><td>{currency(row.expense_usd)}</td></tr>)}</tbody>
-        </table></div>
-      </section>}
-      {metrics.departments.length > 0 && <section className="panel dashboard-departments">
-        <div className="panel-heading"><div><span className="eyebrow">{text("administration").toUpperCase()}</span><h2>{text("departmentSummary")}</h2></div></div>
-        <div className="department-summary-list">{metrics.departments.map((department) => <div key={department.name}><span>{department.name}</span><strong>{department.active_users}</strong></div>)}</div>
-      </section>}
-      <section className="dashboard-lower">
-        <div className="panel welcome-panel">
-          <div className="welcome-visual"><div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" /><span className="visual-center">M</span><span className="visual-star star-one">✳</span><span className="visual-star star-two">✦</span></div>
-          <div className="welcome-copy">
-            <span className="eyebrow">PHASE 01 · FOUNDATION</span>
-            <h2>{text("quickStart")}</h2>
-            <p>{text("quickStartText")}</p>
-            <div className="foundation-progress"><b>{text("currentProjectStage")}</b><small>{text("inProgress")}</small></div>
-            <p className="project-progress-date"><span>{text("lastProjectUpdate")}:</span> <time dateTime="2026-11-02">{projectProgressDate}</time></p>
+      <section className={`dashboard-overview-grid${metrics.trend.length ? "" : " dashboard-overview-no-trend"}`}>
+        {metrics.trend.length > 0 && <section className="panel dashboard-trend-panel" aria-labelledby="dashboard-cash-flow-title">
+          <div className="panel-heading">
+            <div><span className="eyebrow">{text("finance").toUpperCase()}</span><h2 id="dashboard-cash-flow-title">{text("validatedCashFlow")}</h2></div>
+            <span className="count-pill">{months} {text(months === 1 ? "monthShort" : "monthsShort")}</span>
           </div>
+          <div className="dashboard-chart-summary">
+            <div><span>{text("income")}</span><strong>{currency(String(incomeTotal))}</strong></div>
+            <div><span>{text("expense")}</span><strong>{currency(String(expenseTotal))}</strong></div>
+            <div className={netTotal < 0 ? "dashboard-net-negative" : ""}><span>{text("netCashFlow")}</span><strong>{currency(String(netTotal))}</strong></div>
+          </div>
+          <div className="dashboard-chart-legend" aria-hidden="true">
+            <span><i className="legend-income" />{text("income")}</span>
+            <span><i className="legend-expense" />{text("expense")}</span>
+          </div>
+          <div className="dashboard-chart-scroll">
+            <svg className="dashboard-cash-flow-chart" viewBox={`0 0 ${chart.width} 260`} role="img" aria-labelledby="dashboard-chart-title dashboard-chart-description">
+              <title id="dashboard-chart-title">{text("validatedCashFlow")}</title>
+              <desc id="dashboard-chart-description">{text("cashFlowChartDescription")}</desc>
+              {Array.from({ length: 5 }, (_, index) => {
+                const value = chartMaximum * index / 4;
+                const y = chart.bottom - plotHeight * index / 4;
+                return <g key={index}>
+                  <line x1={chart.left} y1={y} x2={chart.right} y2={y} className="chart-grid-line" />
+                  <text x={chart.left - 10} y={y + 4} textAnchor="end" className="chart-axis-label">{compactCurrency(value)}</text>
+                </g>;
+              })}
+              {metrics.trend.map((row, index) => {
+                const groupWidth = plotWidth / metrics.trend.length;
+                const center = chart.left + groupWidth * (index + 0.5);
+                const barWidth = Math.min(20, groupWidth * 0.28);
+                const gap = Math.min(5, groupWidth * 0.07);
+                const income = Math.max(0, Number(row.income_usd));
+                const expense = Math.max(0, Number(row.expense_usd));
+                const incomeHeight = income > 0 ? Math.max(2, plotHeight * income / chartMaximum) : 0;
+                const expenseHeight = expense > 0 ? Math.max(2, plotHeight * expense / chartMaximum) : 0;
+                const monthDate = new Date(`${row.month}-01T12:00:00Z`);
+                return <g key={row.month}>
+                  <rect x={center - gap / 2 - barWidth} y={chart.bottom - incomeHeight} width={barWidth} height={incomeHeight} rx="3" className="chart-income-bar">
+                    <title>{`${text("income")} · ${new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(monthDate)}: ${currency(row.income_usd)}`}</title>
+                  </rect>
+                  <rect x={center + gap / 2} y={chart.bottom - expenseHeight} width={barWidth} height={expenseHeight} rx="3" className="chart-expense-bar">
+                    <title>{`${text("expense")} · ${new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(monthDate)}: ${currency(row.expense_usd)}`}</title>
+                  </rect>
+                  <text x={center} y="246" textAnchor="middle" className="chart-axis-label">
+                    {new Intl.DateTimeFormat(locale, { month: "short", timeZone: "UTC" }).format(monthDate)}
+                  </text>
+                </g>;
+              })}
+            </svg>
+          </div>
+          <details className="dashboard-data-details">
+            <summary>{text("viewMonthlyDetails")}</summary>
+            <div className="table-scroll"><table><thead><tr><th>{text("month")}</th><th>{text("income")}</th><th>{text("expense")}</th></tr></thead>
+              <tbody>{metrics.trend.map((row) => <tr key={row.month}><td>{new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${row.month}-01T12:00:00Z`))}</td><td>{currency(row.income_usd)}</td><td>{currency(row.expense_usd)}</td></tr>)}</tbody>
+            </table></div>
+          </details>
+        </section>}
+        <div className="dashboard-side-stack">
+          {metrics.departments.length > 0 && <section className="panel dashboard-departments" aria-labelledby="dashboard-departments-title">
+            <div className="panel-heading"><div><span className="eyebrow">{text("administration").toUpperCase()}</span><h2 id="dashboard-departments-title">{text("departmentSummary")}</h2></div></div>
+            <div className="department-summary-list">{metrics.departments.map((department) => {
+              const activeUsers = Number(department.active_users);
+              return <div className="department-summary-item" key={department.name}>
+                <div className="department-summary-heading"><span>{department.name}</span><strong>{department.active_users}</strong></div>
+                <div className="department-summary-track" role="meter" aria-label={department.name} aria-valuemin={0} aria-valuemax={departmentMaximum} aria-valuenow={activeUsers}>
+                  <span style={{ width: `${activeUsers / departmentMaximum * 100}%` }} />
+                </div>
+              </div>;
+            })}</div>
+          </section>}
+          <aside className="panel workspace-panel">
+            <div className="panel-heading"><div><span className="eyebrow">{text("workspace").toUpperCase()}</span><h2>{text("profile")}</h2></div><span className="panel-icon">⌘</span></div>
+            <div className="profile-row"><span className="profile-avatar">{user.fullName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span><div><strong>{user.fullName}</strong><small>{user.department ?? user.roles.join(" · ")}</small></div></div>
+            <div className="profile-info"><div><span>{text("email")}</span><b>{user.email}</b></div><div><span>{text("language")}</span><b>{user.locale.toUpperCase()}</b></div><div><span>{text("displayCurrency")}</span><b>{user.displayCurrency}</b></div></div>
+          </aside>
         </div>
-        <aside className="panel workspace-panel">
-          <div className="panel-heading"><div><span className="eyebrow">{text("workspace").toUpperCase()}</span><h2>{text("profile")}</h2></div><span className="panel-icon">⌘</span></div>
-          <div className="profile-row"><span className="profile-avatar">{user.fullName.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span><div><strong>{user.fullName}</strong><small>{user.department ?? user.roles.join(" · ")}</small></div></div>
-          <div className="profile-info"><div><span>{text("email")}</span><b>{user.email}</b></div><div><span>{text("language")}</span><b>{user.locale.toUpperCase()}</b></div><div><span>{text("displayCurrency")}</span><b>{user.displayCurrency}</b></div></div>
-        </aside>
       </section>
       <div className="dashboard-footnote"><span>✳</span><p>{text("accessNote")}</p></div>
     </div>

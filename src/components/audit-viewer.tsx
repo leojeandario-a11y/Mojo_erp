@@ -60,8 +60,10 @@ export function AuditViewer({ locale }: { locale: Locale }) {
     setError("");
     try {
       const response = await fetch(`/api/v1/audit?${queryString(pageOffset, selectedFilters)}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(text("requestFailed"));
+      const data = await response.json() as { events?: AuditEvent[]; hasMore?: boolean; error?: string };
+      if (!response.ok || !Array.isArray(data.events) || typeof data.hasMore !== "boolean") {
+        throw new Error(data.error ?? text("requestFailed"));
+      }
       setEvents(data.events);
       setOffset(pageOffset);
       setHasMore(data.hasMore);
@@ -76,8 +78,8 @@ export function AuditViewer({ locale }: { locale: Locale }) {
     void loadPage(0, emptyFilters);
     fetch("/api/v1/audit?facets=1")
       .then(async (response) => {
-        if (!response.ok) throw new Error(text("requestFailed"));
-        const data = await response.json() as { facets: AuditFacets };
+        const data = await response.json() as { facets?: AuditFacets; error?: string };
+        if (!response.ok || !data.facets) throw new Error(data.error ?? text("requestFailed"));
         setFacets(data.facets);
       })
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : text("requestFailed")));
@@ -85,7 +87,11 @@ export function AuditViewer({ locale }: { locale: Locale }) {
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setAppliedFilters(filters);
+    if (filters.from && filters.to && filters.from > filters.to) {
+      setError(text("invalidAuditDateRange"));
+      return;
+    }
+    setAppliedFilters({ ...filters });
     void loadPage(0, filters);
   }
 
@@ -98,8 +104,8 @@ export function AuditViewer({ locale }: { locale: Locale }) {
         <span className="count-pill">{events.length}</span>
       </div>
       <form className="audit-filters" onSubmit={applyFilters}>
-        <label>{text("fromDate")}<input type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} /></label>
-        <label>{text("toDate")}<input type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} /></label>
+        <label>{text("fromDate")}<input type="date" max={filters.to || undefined} value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} /></label>
+        <label>{text("toDate")}<input type="date" min={filters.from || undefined} value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} /></label>
         <label>{text("actor")}<select value={filters.userId} onChange={(event) => setFilters({ ...filters, userId: event.target.value })}>
           <option value="">{text("allUsers")}</option>{facets.users.map((user) => <option key={user.id} value={user.id}>{user.name ?? user.id}</option>)}
         </select></label>
@@ -112,7 +118,7 @@ export function AuditViewer({ locale }: { locale: Locale }) {
         <label>{text("result")}<select value={filters.result} onChange={(event) => setFilters({ ...filters, result: event.target.value })}>
           <option value="">{text("allResults")}</option><option value="success">{text("success")}</option><option value="denied">{text("denied")}</option>
         </select></label>
-        <button className="button button-primary" type="submit">{text("applyFilters")}</button>
+        <button className="button button-primary" type="submit" disabled={loading}>{text("applyFilters")}</button>
         <a className="button button-secondary" href={exportHref}>{text("exportCsv")}</a>
       </form>
       {error && <p className="form-error" role="alert">{error}</p>}

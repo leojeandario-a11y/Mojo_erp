@@ -15,7 +15,15 @@ export default async function ProfilePage() {
           <p>{user.fullName} · {user.email}</p>
         </div>
       </div>
-      <ProfileForm locale={user.locale} />
+      <ProfileForm locale={user.locale} user={{
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        department: user.department,
+        registrationBadgeId: user.registrationBadgeId,
+        hasProfilePhoto: user.hasProfilePhoto,
+        profilePhotoVersion: user.profilePhotoVersion,
+      }} />
     </div>
   );
 }

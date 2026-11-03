@@ -23,7 +23,11 @@ export async function GET(request: Request) {
          FROM departments d LEFT JOIN users u ON u.id = d.head_user_id
          ORDER BY d.name`,
       ),
-      client.query("SELECT id, full_name FROM users WHERE is_active ORDER BY full_name"),
+      client.query(
+        `SELECT id, full_name, is_active FROM users
+         WHERE is_active OR id IN (SELECT head_user_id FROM departments WHERE head_user_id IS NOT NULL)
+         ORDER BY full_name`,
+      ),
     ]);
     return { departments: departments.rows, users: users.rows };
   });

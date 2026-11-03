@@ -19,7 +19,7 @@ const eslintConfig = tseslint.config(
     },
   },
   {
-    files: ["tests/**/*.mjs"],
+    files: ["tests/**/*.mjs", "scripts/**/*.mjs", "src/lib/backup-crypto.mjs"],
     languageOptions: {
       globals: { ...globals.node },
     },

@@ -34,18 +34,22 @@ interface ApiError { error?: string }
 export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
   const text = useCallback((key: Parameters<typeof translate>[1]) => translate(locale, key), [locale]);
   const [data, setData] = useState<WorkflowData>({ workflows: [], roles: [], users: [] });
+  const [savedWorkflows, setSavedWorkflows] = useState<ApprovalWorkflow[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const selected = data.workflows.find((workflow) => workflow.id === selectedId);
+  const savedSelected = savedWorkflows.find((workflow) => workflow.id === selectedId);
+  const isDirty = Boolean(selected && savedSelected && JSON.stringify(selected) !== JSON.stringify(savedSelected));
 
   const load = useCallback(async () => {
     const response = await fetch("/api/v1/approvals/workflows");
     const body = await response.json() as WorkflowData & ApiError;
     if (!response.ok) throw new Error(body.error ?? text("requestFailed"));
     setData(body);
+    setSavedWorkflows(body.workflows);
     setSelectedId((current) => body.workflows.some((workflow) => workflow.id === current)
       ? current
       : body.workflows[0]?.id ?? "");
@@ -128,7 +132,9 @@ export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
         <>
           <label className="workflow-select">
             {text("selectWorkflow")}
-            <select value={selectedId} onChange={(event) => {
+            <select value={selectedId} disabled={saving} onChange={(event) => {
+              if (isDirty && !window.confirm(text("discardWorkflowChanges"))) return;
+              if (isDirty) setData((current) => ({ ...current, workflows: savedWorkflows }));
               setSelectedId(event.target.value);
               setError("");
               setNotice("");
@@ -151,6 +157,7 @@ export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
                   <input
                     type="checkbox"
                     checked={selected.is_active}
+                    disabled={saving}
                     onChange={(event) => updateWorkflow((workflow) => ({ ...workflow, is_active: event.target.checked }))}
                   />
                   {text(selected.is_active ? "workflowActive" : "workflowInactive")}
@@ -163,6 +170,7 @@ export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
                   minLength={2}
                   required
                   value={selected.name}
+                  disabled={saving}
                   onChange={(event) => updateWorkflow((workflow) => ({ ...workflow, name: event.target.value }))}
                 />
               </label>
@@ -173,11 +181,11 @@ export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
                       <strong>{text("workflowStep")} {index + 1}</strong>
                       <div>
                         <button className="table-action" type="button" aria-label={text("moveUp")}
-                          disabled={index === 0} onClick={() => moveStep(index, -1)}>↑</button>
+                          disabled={saving || index === 0} onClick={() => moveStep(index, -1)}>↑</button>
                         <button className="table-action" type="button" aria-label={text("moveDown")}
-                          disabled={index === selected.steps.length - 1} onClick={() => moveStep(index, 1)}>↓</button>
+                          disabled={saving || index === selected.steps.length - 1} onClick={() => moveStep(index, 1)}>↓</button>
                         <button className="table-action" type="button" aria-label={text("removeWorkflowStep")}
-                          disabled={selected.steps.length <= 1}
+                          disabled={saving || selected.steps.length <= 1}
                           onClick={() => updateWorkflow((workflow) => ({
                             ...workflow,
                             steps: workflow.steps.filter((_, stepIndex) => stepIndex !== index),
@@ -187,12 +195,12 @@ export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
                     <div className="workflow-step-fields">
                       <label>
                         {text("name")}
-                        <input required maxLength={120} value={step.label}
+                        <input required maxLength={120} value={step.label} disabled={saving}
                           onChange={(event) => updateStep(index, (current) => ({ ...current, label: event.target.value }))} />
                       </label>
                       <label>
                         {text("approverRole")}
-                        <select value={step.approver_role_id ?? ""} onChange={(event) => updateStep(index, (current) => ({
+                        <select value={step.approver_role_id ?? ""} disabled={saving} onChange={(event) => updateStep(index, (current) => ({
                           ...current,
                           approver_role_id: event.target.value || null,
                           approver_user_id: event.target.value ? null : current.approver_user_id,
@@ -203,7 +211,7 @@ export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
                       </label>
                       <label>
                         {text("approverUser")}
-                        <select value={step.approver_user_id ?? ""} onChange={(event) => updateStep(index, (current) => ({
+                        <select value={step.approver_user_id ?? ""} disabled={saving} onChange={(event) => updateStep(index, (current) => ({
                           ...current,
                           approver_user_id: event.target.value || null,
                           approver_role_id: event.target.value ? null : current.approver_role_id,
@@ -214,7 +222,7 @@ export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
                       </label>
                       <label>
                         {text("workflowThreshold")}
-                        <input type="number" min="0" step="0.01"
+                        <input type="number" min="0" step="0.01" disabled={saving}
                           placeholder={text("workflowAlwaysRequired")}
                           value={step.min_amount_usd ?? ""}
                           onChange={(event) => updateStep(index, (current) => ({
@@ -226,6 +234,7 @@ export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
                   </article>
                 ))}
               </div>
+              {isDirty && <p className="muted" role="status">{text("unsavedChanges")}</p>}
               <div className="workflow-actions">
                 <button className="button button-secondary" type="button" onClick={() => updateWorkflow((workflow) => ({
                   ...workflow,
@@ -235,11 +244,11 @@ export function ApprovalWorkflowsManager({ locale }: { locale: Locale }) {
                     approver_user_id: null,
                     min_amount_usd: null,
                   }],
-                }))} disabled={selected.steps.length >= 20}>
+                }))} disabled={saving || selected.steps.length >= 20}>
                   {text("addWorkflowStep")}
                 </button>
                 <button className="button button-primary" type="button" onClick={() => void saveWorkflow()}
-                  disabled={saving || selected.steps.some((step) =>
+                  disabled={saving || !isDirty || selected.steps.some((step) =>
                     !step.label.trim() || (!!step.approver_role_id === !!step.approver_user_id)
                     || (step.min_amount_usd !== null && !/^\d{1,16}(?:\.\d{1,2})?$/.test(step.min_amount_usd)))}>
                   {saving ? text("saving") : text("saveChanges")}

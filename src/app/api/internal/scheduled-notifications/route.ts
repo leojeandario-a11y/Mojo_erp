@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { runScheduledNotifications } from "@/lib/scheduled-notifications";
+import { runScheduledReports } from "@/lib/scheduled-reports";
 
 export async function POST(request: Request) {
   const expectedToken = process.env.MOJO_SCHEDULED_TASK_TOKEN;
@@ -15,7 +16,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    return NextResponse.json(await runScheduledNotifications());
+    const notifications = await runScheduledNotifications();
+    const reports = await runScheduledReports();
+    return NextResponse.json({ notifications, reports });
   } catch (error) {
     console.error("Unable to run scheduled notifications.", error);
     return NextResponse.json({ error: "Unable to run scheduled notifications." }, { status: 500 });

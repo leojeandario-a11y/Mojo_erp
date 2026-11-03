@@ -233,32 +233,42 @@ export function FinanceOperationsManager({
             <div className="finance-operations-grid">
               <form className="stack-form finance-operation-form" onSubmit={createPayment}>
                 <h3>{text("recordPayment")}</h3>
-                <label>{text("paymentDirection")}<select value={paymentDirection} onChange={(event) => {
-                  if (event.target.value === "in" || event.target.value === "out") setPaymentDirection(event.target.value);
-                }}>
-                  <option value="out">{text("paymentOut")}</option>
-                  <option value="in">{text("paymentIn")}</option>
-                </select></label>
-                <label>{text("transactionAccount")}<select value={paymentAccountId} onChange={(event) => setPaymentAccountId(event.target.value)} required>
-                  {accounts.map((account) => <option key={account.id} value={account.id}>
-                    {account.entity_name} · {account.name} ({account.currency})
-                  </option>)}
-                </select></label>
-                <label>{text("payeeOrPayer")}<input name="payee" required minLength={2} maxLength={160} /></label>
-                <label>{text("amount")}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-                <label>{text("financeCategories")}<select name="categoryId" defaultValue="">
-                  <option value="">{text("noCategories")}</option>
-                  {selectedEntityCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select></label>
-                <label>{text("paymentMethod")}<select name="method" defaultValue="bank_transfer">
-                  <option value="cash">{text("paymentMethodCash")}</option>
-                  <option value="bank_transfer">{text("paymentMethodBank")}</option>
-                  <option value="cheque">{text("paymentMethodCheque")}</option>
-                  <option value="mobile_money">{text("paymentMethodMobile")}</option>
-                  <option value="card">{text("paymentMethodCard")}</option>
-                </select></label>
-                <label>{text("paymentDate")}<input name="paidAt" type="date" required defaultValue={localDate()} /></label>
-                <label>{text("reference")}<input name="reference" maxLength={160} /></label>
+                <fieldset className="finance-operation-section">
+                  <legend>{text("transactionDetails")}</legend>
+                  <div className="finance-operation-fields">
+                    <label>{text("paymentDirection")}<select value={paymentDirection} onChange={(event) => {
+                      if (event.target.value === "in" || event.target.value === "out") setPaymentDirection(event.target.value);
+                    }}>
+                      <option value="out">{text("paymentOut")}</option>
+                      <option value="in">{text("paymentIn")}</option>
+                    </select></label>
+                    <label>{text("transactionAccount")}<select value={paymentAccountId} onChange={(event) => setPaymentAccountId(event.target.value)} required>
+                      {accounts.map((account) => <option key={account.id} value={account.id}>
+                        {account.entity_name} · {account.name} ({account.currency})
+                      </option>)}
+                    </select></label>
+                    <label>{text("payeeOrPayer")}<input name="payee" required minLength={2} maxLength={160} /></label>
+                    <label>{text("amount")}<input name="amount" type="number" min="0.01" step="0.01" required /></label>
+                    <label>{text("financeCategories")}<select name="categoryId" defaultValue="">
+                      <option value="">{text("noCategories")}</option>
+                      {selectedEntityCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                    </select></label>
+                  </div>
+                </fieldset>
+                <fieldset className="finance-operation-section">
+                  <legend>{text("paymentInformation")}</legend>
+                  <div className="finance-operation-fields">
+                    <label>{text("paymentMethod")}<select name="method" defaultValue="bank_transfer">
+                      <option value="cash">{text("paymentMethodCash")}</option>
+                      <option value="bank_transfer">{text("paymentMethodBank")}</option>
+                      <option value="cheque">{text("paymentMethodCheque")}</option>
+                      <option value="mobile_money">{text("paymentMethodMobile")}</option>
+                      <option value="card">{text("paymentMethodCard")}</option>
+                    </select></label>
+                    <label>{text("paymentDate")}<input name="paidAt" type="date" required defaultValue={localDate()} /></label>
+                    <label>{text("reference")}<input name="reference" maxLength={160} /></label>
+                  </div>
+                </fieldset>
                 <button className="button button-primary" type="submit" disabled={saving || !selectedPaymentAccount}>
                   {saving ? text("saving") : text("recordPayment")}
                 </button>
@@ -266,17 +276,27 @@ export function FinanceOperationsManager({
 
               <form className="stack-form finance-operation-form" onSubmit={createDebt}>
                 <h3>{text("registerDebt")}</h3>
-                <label>{text("entity")}<select value={debtEntityId} onChange={(event) => setDebtEntityId(event.target.value)} required>
-                  {entities.map((entity) => <option key={entity.entity_id} value={entity.entity_id}>{entity.entity_name}</option>)}
-                </select></label>
-                <label>{text("creditor")}<input name="creditor" required minLength={2} maxLength={160} /></label>
-                <label>{text("description")}<textarea name="description" rows={2} maxLength={1000} /></label>
-                <label>{text("amount")}<input name="principal" type="number" min="0.01" step="0.01" required /></label>
-                <label>{text("currency")}<select name="currency" defaultValue="USD">
-                  <option value="USD">USD</option><option value="HTG">HTG</option>
-                </select></label>
-                <label>{text("debtIncurredDate")}<input name="incurredOn" type="date" required defaultValue={localDate()} /></label>
-                <label>{text("dueDate")}<input name="dueDate" type="date" /></label>
+                <fieldset className="finance-operation-section">
+                  <legend>{text("debtInformation")}</legend>
+                  <div className="finance-operation-fields">
+                    <label>{text("entity")}<select value={debtEntityId} onChange={(event) => setDebtEntityId(event.target.value)} required>
+                      {entities.map((entity) => <option key={entity.entity_id} value={entity.entity_id}>{entity.entity_name}</option>)}
+                    </select></label>
+                    <label>{text("creditor")}<input name="creditor" required minLength={2} maxLength={160} /></label>
+                    <label>{text("amount")}<input name="principal" type="number" min="0.01" step="0.01" required /></label>
+                    <label>{text("currency")}<select name="currency" defaultValue="USD">
+                      <option value="USD">USD</option><option value="HTG">HTG</option>
+                    </select></label>
+                  </div>
+                  <label>{text("description")}<textarea name="description" rows={2} maxLength={1000} /></label>
+                </fieldset>
+                <fieldset className="finance-operation-section">
+                  <legend>{text("schedule")}</legend>
+                  <div className="finance-operation-fields">
+                    <label>{text("debtIncurredDate")}<input name="incurredOn" type="date" required defaultValue={localDate()} /></label>
+                    <label>{text("dueDate")}<input name="dueDate" type="date" /></label>
+                  </div>
+                </fieldset>
                 <button className="button button-primary" type="submit" disabled={saving || !debtEntityId}>
                   {saving ? text("saving") : text("registerDebt")}
                 </button>

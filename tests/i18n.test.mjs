@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("French, Haitian Creole, and English dictionaries have matching keys", async () => {
-  const source = await readFile(new URL("../src/lib/i18n.ts", import.meta.url), "utf8");
+  const source = (await readFile(new URL("../src/lib/i18n.ts", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   const dictionaries = Array.from(source.matchAll(/^\s{2}(fr|ht|en): \{\n([\s\S]*?)^\s{2}\},?$/gm));
   assert.equal(dictionaries.length, 3);
 
