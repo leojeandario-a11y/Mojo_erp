@@ -37,21 +37,40 @@ function packageFile(content) {
   return strToU8(content);
 }
 
-export function buildXlsx(columns, rows, sheetName) {
+/**
+ * @param {{ key: string, header: string }[]} columns
+ * @param {Record<string, string | null>[]} rows
+ * @param {string} sheetName
+ * @param {{ organization: string, title: string, period: string, generatedAt: string } | null} [metadata]
+ */
+export function buildXlsx(columns, rows, sheetName, metadata = null) {
   if (!columns.length) throw new RangeError("An Excel report needs at least one column.");
   const safeName = ["[", "]", ":", "*", "?", "/", "\\"]
     .reduce((name, character) => name.replaceAll(character, " "), String(sheetName))
     .trim().slice(0, 31) || "Report";
   const lastColumn = columnName(columns.length - 1);
+  const headerRow = metadata ? 5 : 1;
+  const metadataMerges = metadata && columns.length > 1
+    ? `<mergeCells count="4">${[1, 2, 3, 4].map((row) => `<mergeCell ref="A${row}:${lastColumn}${row}"/>`).join("")}</mergeCells>`
+    : "";
   const rowsXml = [
-    `<row r="1">${columns.map((column, index) =>
-      `<c r="${columnName(index)}1" s="1" t="inlineStr"><is><t xml:space="preserve">${xmlText(column.header)}</t></is></c>`,
+    ...(metadata ? [
+      `<row r="1" ht="24" customHeight="1"><c r="A1" s="2" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.organization)}</t></is></c></row>`,
+      `<row r="2" ht="21" customHeight="1"><c r="A2" s="3" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.title)}</t></is></c></row>`,
+      `<row r="3"><c r="A3" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.period)}</t></is></c></row>`,
+      `<row r="4"><c r="A4" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.generatedAt)}</t></is></c></row>`,
+    ] : []),
+    `<row r="${headerRow}">${columns.map((column, index) =>
+      `<c r="${columnName(index)}${headerRow}" s="1" t="inlineStr"><is><t xml:space="preserve">${xmlText(column.header)}</t></is></c>`,
     ).join("")}</row>`,
-    ...rows.map((row, rowIndex) => `<row r="${rowIndex + 2}">${columns.map((column, columnIndex) =>
-      cell(`${columnName(columnIndex)}${rowIndex + 2}`, row[column.key], ![
-        "entity", "department", "stage", "currency", "campaign", "status", "project", "period",
-      ].includes(column.key)),
-    ).join("")}</row>`),
+    ...rows.map((row, rowIndex) => {
+      const rowNumber = rowIndex + headerRow + 1;
+      return `<row r="${rowNumber}">${columns.map((column, columnIndex) =>
+        cell(`${columnName(columnIndex)}${rowNumber}`, row[column.key], ![
+          "entity", "department", "stage", "currency", "campaign", "status", "project", "period",
+        ].includes(column.key)),
+      ).join("")}</row>`;
+    }),
   ].join("");
   const columnWidths = columns.map((column, index) =>
     `<col min="${index + 1}" max="${index + 1}" width="${Math.min(36, Math.max(12, column.header.length + 3))}" customWidth="1"/>`,
@@ -83,20 +102,21 @@ export function buildXlsx(columns, rows, sheetName) {
 </Relationships>`),
     "xl/styles.xml": packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
- <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Calibri"/></font></fonts>
+<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Calibri"/></font><font><b/><color rgb="FF173858"/><sz val="14"/><name val="Calibri"/></font><font><b/><color rgb="FF173858"/><sz val="12"/><name val="Calibri"/></font></fonts>
  <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF173858"/><bgColor indexed="64"/></patternFill></fill></fills>
  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
- <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" applyFont="1" applyFill="1" xfId="0"/></cellXfs>
+ <cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" applyFont="1" applyFill="1" xfId="0"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" applyFont="1" xfId="0"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" applyFont="1" xfId="0"/></cellXfs>
  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`),
     "xl/worksheets/sheet1.xml": packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
- <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
  <sheetFormatPr defaultRowHeight="15"/>
  <cols>${columnWidths}</cols>
  <sheetData>${rowsXml}</sheetData>
- <autoFilter ref="A1:${lastColumn}${rows.length + 1}"/>
+${metadataMerges}
+<autoFilter ref="A${headerRow}:${lastColumn}${rows.length + headerRow}"/>
 </worksheet>`),
     "docProps/core.xml": packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">

@@ -15,6 +15,346 @@ const querySchema = z.object({
 
 const MAX_ROWS = 1000;
 
+type FinancialSummaryRow = {
+  entity: string;
+  metric: string;
+  subject: string;
+  currency: string | null;
+  balance: string | null;
+  target_amount: string | null;
+  planned_amount: string | null;
+  actual_amount: string | null;
+  income_usd: string | null;
+  expense_usd: string | null;
+  net_usd: string | null;
+  net_margin_pct: string | null;
+  missing_rate_count: string | null;
+};
+
+function summaryRow(
+  entity: string,
+  metric: string,
+  subject: string,
+  values: Partial<Omit<FinancialSummaryRow, "entity" | "metric" | "subject">> = {},
+): FinancialSummaryRow {
+  return {
+    entity,
+    metric,
+    subject,
+    currency: null,
+    balance: null,
+    target_amount: null,
+    planned_amount: null,
+    actual_amount: null,
+    income_usd: null,
+    expense_usd: null,
+    net_usd: null,
+    net_margin_pct: null,
+    missing_rate_count: null,
+    ...values,
+  };
+}
+
+async function buildFinancialSummary(
+  client: PoolClient,
+  from: string,
+  to: string,
+  entityId: string | null,
+): Promise<FinancialSummaryRow[]> {
+  const rows: FinancialSummaryRow[] = [];
+  const results = await client.query<{
+    entity: string;
+    income_usd: string;
+    expense_usd: string;
+    net_usd: string;
+    net_margin_pct: string | null;
+  }>(
+    `WITH totals AS (
+       SELECT e.id, e.name AS entity,
+              COALESCE(SUM(t.amount_usd) FILTER (
+                WHERE t.tx_type = 'income'
+                  OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase')
+              ), 0) AS income_usd,
+              COALESCE(SUM(t.amount_usd) FILTER (
+                WHERE t.tx_type = 'expense'
+                  OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease')
+              ), 0) AS expense_usd
+       FROM entities e
+       LEFT JOIN transactions t ON t.entity_id = e.id
+         AND t.tx_date >= $1::date AND t.tx_date <= $2::date
+         AND t.status = 'validated'
+         AND t.tx_type IN ('income', 'expense', 'adjustment')
+       WHERE e.is_active
+         AND app_has_entity_permission('finance.report.read', e.id)
+         AND ($3::uuid IS NULL OR e.id = $3::uuid)
+       GROUP BY e.id
+     )
+     SELECT entity,
+            round(income_usd, 2)::text AS income_usd,
+            round(expense_usd, 2)::text AS expense_usd,
+            round(income_usd - expense_usd, 2)::text AS net_usd,
+            CASE WHEN income_usd > 0
+              THEN round((income_usd - expense_usd) * 100 / income_usd, 2)::text
+              ELSE NULL
+            END AS net_margin_pct
+     FROM totals
+     ORDER BY entity`,
+    [from, to, entityId],
+  );
+  rows.push(...results.rows.map((row) => summaryRow(row.entity, "result", "", {
+    currency: "USD",
+    income_usd: row.income_usd,
+    expense_usd: row.expense_usd,
+    net_usd: row.net_usd,
+    net_margin_pct: row.net_margin_pct,
+  })));
+
+  const accounts = await client.query<{
+    entity: string;
+    subject: string;
+    currency: string;
+    balance: string;
+  }>(
+    `SELECT e.name AS entity, a.name AS subject, a.currency::text AS currency,
+            (a.opening_balance + COALESCE(SUM(CASE
+              WHEN t.tx_type IN ('income', 'transfer_in') THEN t.amount
+              WHEN t.tx_type IN ('expense', 'transfer_out') THEN -t.amount
+              WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase' THEN t.amount
+              WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease' THEN -t.amount
+              ELSE 0
+            END) FILTER (WHERE t.status IN ('validated', 'reversed') AND t.tx_date <= $1::date), 0))::text AS balance
+     FROM accounts a
+     JOIN entities e ON e.id = a.entity_id
+     LEFT JOIN transactions t ON t.account_id = a.id
+     WHERE a.is_active
+       AND (app_has_entity_permission('finance.account.manage', e.id)
+         OR app_has_entity_permission('finance.transaction.read', e.id))
+       AND ($2::uuid IS NULL OR e.id = $2::uuid)
+     GROUP BY e.id, e.name, a.id
+     ORDER BY e.name, a.name`,
+    [to, entityId],
+  );
+  rows.push(...accounts.rows.map((row) => summaryRow(row.entity, "treasury", row.subject, {
+    currency: row.currency.trim(),
+    balance: row.balance,
+  })));
+
+  const funds = await client.query<{
+    entity: string;
+    subject: string;
+    currency: string;
+    balance: string;
+    target_amount: string | null;
+  }>(
+    `SELECT e.name AS entity, fund.name AS subject, fund.currency::text AS currency,
+            (
+              COALESCE((SELECT SUM(contribution.amount) FROM fund_contributions contribution
+                WHERE contribution.fund_id = fund.id
+                  AND contribution.contribution_date <= $1::date), 0)
+              - COALESCE((SELECT SUM(contribution.amount)
+                FROM fund_contributions contribution
+                JOIN transactions reversal ON reversal.id = contribution.reversal_transaction_id
+                WHERE contribution.fund_id = fund.id AND reversal.tx_date <= $1::date), 0)
+              - COALESCE((SELECT SUM(withdrawal.amount)
+                FROM fund_withdrawals withdrawal
+                JOIN transactions tx ON tx.id = withdrawal.transaction_id
+                WHERE withdrawal.fund_id = fund.id AND tx.tx_date <= $1::date), 0)
+              + COALESCE((SELECT SUM(withdrawal.amount)
+                FROM fund_withdrawals withdrawal
+                JOIN transactions reversal ON reversal.id = withdrawal.reversal_transaction_id
+                WHERE withdrawal.fund_id = fund.id AND reversal.tx_date <= $1::date), 0)
+            )::text AS balance,
+            fund.target_amount::text AS target_amount
+     FROM emergency_funds fund
+     JOIN entities e ON e.id = fund.entity_id
+     WHERE fund.is_active
+       AND app_has_entity_permission('finance.fund.read', e.id)
+       AND ($2::uuid IS NULL OR e.id = $2::uuid)
+     ORDER BY e.name, fund.name`,
+    [to, entityId],
+  );
+  rows.push(...funds.rows.map((row) => summaryRow(row.entity, "emergency_fund", row.subject, {
+    currency: row.currency.trim(),
+    balance: row.balance,
+    target_amount: row.target_amount,
+  })));
+
+  const budgets = await client.query<{
+    entity: string;
+    subject: string;
+    currency: string;
+    planned_amount: string;
+    actual_amount: string | null;
+    missing_rate_count: string;
+  }>(
+    `SELECT e.name AS entity, b.name AS subject, b.currency::text AS currency,
+            COALESCE((SELECT SUM(bl.planned_amount) FROM budget_lines bl WHERE bl.budget_id = b.id), 0)::text AS planned_amount,
+            CASE WHEN COALESCE(actual.missing_rate_count, 0) > 0
+              THEN NULL ELSE COALESCE(actual.amount, 0)::text END AS actual_amount,
+            COALESCE(actual.missing_rate_count, 0)::text AS missing_rate_count
+     FROM budgets b
+     JOIN entities e ON e.id = b.entity_id
+     LEFT JOIN LATERAL (
+       SELECT SUM(
+                (CASE
+                  WHEN tx.tx_type = 'income' AND source_original.tx_type = 'expense' THEN -1
+                  WHEN tx.tx_type = 'adjustment'
+                    AND tx.adjustment_direction = 'increase'
+                    AND source_original.tx_type = 'adjustment'
+                    AND source_original.adjustment_direction = 'decrease' THEN -1
+                  ELSE 1
+                END) * CASE
+                  WHEN b.currency = 'USD' THEN tx.amount_usd
+                  WHEN tx.currency = 'HTG' THEN tx.amount
+                  WHEN tx.currency = 'USD' AND fx.htg_per_usd IS NOT NULL
+                    THEN ROUND(tx.amount_usd * fx.htg_per_usd, 2)
+                END
+              ) AS amount,
+              COUNT(*) FILTER (
+                WHERE b.currency = 'HTG' AND tx.currency = 'USD' AND fx.htg_per_usd IS NULL
+              ) AS missing_rate_count
+       FROM transactions tx
+       LEFT JOIN transactions source_original ON source_original.id = tx.reversal_of_id
+       LEFT JOIN LATERAL (
+         SELECT CASE WHEN er.from_currency = 'USD' THEN er.rate ELSE 1 / er.rate END AS htg_per_usd
+         FROM exchange_rates er
+         WHERE er.rate_date <= tx.tx_date
+           AND ((er.from_currency = 'USD' AND er.to_currency = 'HTG')
+             OR (er.from_currency = 'HTG' AND er.to_currency = 'USD'))
+         ORDER BY er.rate_date DESC, (er.from_currency = 'USD') DESC, er.created_at DESC
+         LIMIT 1
+       ) fx ON true
+       WHERE tx.entity_id = b.entity_id
+         AND (
+           tx.tx_type = 'expense'
+           OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'decrease')
+           OR (tx.tx_type = 'income' AND source_original.tx_type = 'expense')
+           OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'increase'
+             AND source_original.tx_type = 'adjustment' AND source_original.adjustment_direction = 'decrease')
+         )
+         AND tx.status IN ('validated', 'reversed')
+         AND tx.tx_date >= CASE
+           WHEN b.period_type = 'annual' THEN make_date(b.fiscal_year, 1, 1)
+           ELSE make_date(b.fiscal_year, b.period_month, 1)
+         END
+         AND tx.tx_date <= $1::date
+         AND (b.scope <> 'department' OR COALESCE(tx.department_id, source_original.department_id) = b.department_id)
+         AND (b.scope <> 'project' OR COALESCE(tx.project_id, source_original.project_id) = b.project_id)
+         AND (b.scope <> 'category' OR EXISTS (
+           SELECT 1 FROM budget_lines bl
+           WHERE bl.budget_id = b.id AND bl.category_id = COALESCE(tx.category_id, source_original.category_id)
+         ))
+         AND (b.scope <> 'marketing' OR COALESCE(tx.department_id, source_original.department_id) = (
+           SELECT id FROM departments WHERE code = 'MKT'
+         ))
+         AND (b.scope <> 'operations' OR COALESCE(tx.department_id, source_original.department_id) = (
+           SELECT id FROM departments WHERE code = 'OPS'
+         ))
+         AND (b.scope <> 'hr' OR COALESCE(tx.department_id, source_original.department_id) = (
+           SELECT id FROM departments WHERE code = 'DRH'
+         ))
+     ) actual ON true
+     WHERE b.status = 'approved'
+       AND CASE
+         WHEN b.period_type = 'annual' THEN make_date(b.fiscal_year, 1, 1)
+         ELSE make_date(b.fiscal_year, b.period_month, 1)
+       END <= $1::date
+       AND CASE
+         WHEN b.period_type = 'annual' THEN make_date(b.fiscal_year + 1, 1, 1)
+         ELSE (make_date(b.fiscal_year, b.period_month, 1) + INTERVAL '1 month')::date
+       END > $1::date
+       AND (app_has_entity_permission('finance.budget.read', e.id)
+         OR app_has_entity_permission('finance.budget.manage', e.id))
+       AND ($2::uuid IS NULL OR e.id = $2::uuid)
+     ORDER BY e.name, b.name`,
+    [to, entityId],
+  );
+  rows.push(...budgets.rows.map((row) => summaryRow(row.entity, "budget", row.subject, {
+    currency: row.currency.trim(),
+    planned_amount: row.planned_amount,
+    actual_amount: row.actual_amount,
+    missing_rate_count: row.missing_rate_count,
+  })));
+
+  const receivables = await client.query<{
+    entity: string;
+    currency: string;
+    balance: string;
+  }>(
+    `SELECT e.name AS entity, i.currency::text AS currency,
+            round(SUM(GREATEST(i.total - COALESCE(payments.paid, 0), 0)), 2)::text AS balance
+     FROM invoices i
+     JOIN entities e ON e.id = i.entity_id
+     LEFT JOIN LATERAL (
+       SELECT SUM(round(payment.amount * payment.fx_rate_to_invoice_currency, 2)) AS paid
+       FROM invoice_payments payment
+       LEFT JOIN transactions payment_tx ON payment_tx.id = payment.transaction_id
+       WHERE payment.invoice_id = i.id
+         AND payment.paid_at <= $1::date
+         AND (payment_tx.id IS NULL OR (
+           payment_tx.tx_date <= $1::date
+           AND (payment_tx.status = 'validated' OR (
+             payment_tx.status = 'reversed'
+             AND EXISTS (SELECT 1 FROM transactions reversal
+               WHERE reversal.reversal_of_id = payment_tx.id AND reversal.tx_date > $1::date)
+           ))
+         ))
+     ) payments ON true
+     WHERE i.issue_date <= $1::date
+       AND i.status NOT IN ('draft', 'cancelled')
+       AND (app_has_entity_permission('business.invoice.read', e.id)
+         OR app_has_entity_permission('business.invoice.manage', e.id))
+       AND ($2::uuid IS NULL OR e.id = $2::uuid)
+     GROUP BY e.id, e.name, i.currency
+     HAVING SUM(GREATEST(i.total - COALESCE(payments.paid, 0), 0)) > 0
+     ORDER BY e.name, i.currency`,
+    [to, entityId],
+  );
+  rows.push(...receivables.rows.map((row) => summaryRow(row.entity, "receivable", "", {
+    currency: row.currency.trim(),
+    balance: row.balance,
+  })));
+
+  const debts = await client.query<{
+    entity: string;
+    currency: string;
+    balance: string;
+  }>(
+    `SELECT e.name AS entity, debt.currency::text AS currency,
+            round(SUM(GREATEST(debt.principal - COALESCE(payments.paid, 0), 0)), 2)::text AS balance
+     FROM debts debt
+     JOIN entities e ON e.id = debt.entity_id
+     LEFT JOIN LATERAL (
+       SELECT SUM(payment.amount) AS paid
+       FROM debt_payments payment
+       JOIN transactions payment_tx ON payment_tx.id = payment.transaction_id
+       WHERE payment.debt_id = debt.id
+         AND payment.paid_at <= $1::date
+         AND payment_tx.tx_date <= $1::date
+         AND (payment_tx.status = 'validated' OR (
+           payment_tx.status = 'reversed'
+           AND EXISTS (SELECT 1 FROM transactions reversal
+             WHERE reversal.reversal_of_id = payment_tx.id AND reversal.tx_date > $1::date)
+         ))
+     ) payments ON true
+     WHERE debt.incurred_on <= $1::date
+       AND debt.status <> 'cancelled'
+       AND (app_has_entity_permission('finance.transaction.read', e.id)
+         OR app_has_entity_permission('finance.transaction.create', e.id))
+       AND ($2::uuid IS NULL OR e.id = $2::uuid)
+     GROUP BY e.id, e.name, debt.currency
+     HAVING SUM(GREATEST(debt.principal - COALESCE(payments.paid, 0), 0)) > 0
+     ORDER BY e.name, debt.currency`,
+    [to, entityId],
+  );
+  rows.push(...debts.rows.map((row) => summaryRow(row.entity, "debt", "", {
+    currency: row.currency.trim(),
+    balance: row.balance,
+  })));
+
+  return rows;
+}
+
 function scopedEntityClause(entityAlias: string) {
   return `app_has_entity_permission($4::text, ${entityAlias}.id)
     AND ($3::uuid IS NULL OR ${entityAlias}.id = $3::uuid)`;
@@ -262,6 +602,9 @@ export async function GET(request: Request) {
         if (!availableEntity.rows[0]?.allowed) return { kind: "forbidden" as const };
       }
       const report = await buildRows(client, category, from, to, entityId ?? null);
+      const financialSummary = category === "finance"
+        ? await buildFinancialSummary(client, from, to, entityId ?? null)
+        : undefined;
       const truncated = report.rows.length > MAX_ROWS;
       return {
         kind: "report" as const,
@@ -270,6 +613,7 @@ export async function GET(request: Request) {
           from,
           to,
           rows: report.rows.slice(0, MAX_ROWS),
+          ...(financialSummary ? { financialSummary } : {}),
           rowCount: Math.min(report.rows.length, MAX_ROWS),
           truncated,
           generatedAt: new Date().toISOString(),

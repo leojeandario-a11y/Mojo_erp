@@ -8,6 +8,15 @@ interface TrendRow {
   expense_usd: string;
 }
 
+interface DepartmentFinanceRow {
+  department_id: string | null;
+  department: string | null;
+  is_total: boolean;
+  income_usd: string;
+  expense_usd: string;
+  net_usd: string;
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -55,6 +64,7 @@ export default async function DashboardPage({
         : { rows: [{ count: "—" }] };
 
     let trend: TrendRow[] = [];
+    let financeByDepartment: DepartmentFinanceRow[] = [];
     if (canReadFinance) {
       const entityFilter = hasPermission(user, financePermission)
         ? ""
@@ -80,6 +90,44 @@ export default async function DashboardPage({
         values,
       );
       trend = result.rows;
+
+      if (globalDashboard) {
+        const departmentResult = await client.query<DepartmentFinanceRow>(
+          `SELECT CASE WHEN GROUPING(d.id) = 1 THEN NULL ELSE d.id::text END AS department_id,
+                  CASE WHEN GROUPING(d.id) = 1 THEN NULL ELSE COALESCE(d.name, '—') END AS department,
+                  GROUPING(d.id) = 1 AS is_total,
+                  round(COALESCE(sum(t.amount_usd) FILTER (
+                    WHERE t.tx_type = 'income'
+                      OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase')
+                  ), 0), 2)::text AS income_usd,
+                  round(COALESCE(sum(t.amount_usd) FILTER (
+                    WHERE t.tx_type = 'expense'
+                      OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease')
+                  ), 0), 2)::text AS expense_usd,
+                  round(
+                    COALESCE(sum(t.amount_usd) FILTER (
+                      WHERE t.tx_type = 'income'
+                        OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase')
+                    ), 0) - COALESCE(sum(t.amount_usd) FILTER (
+                      WHERE t.tx_type = 'expense'
+                        OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease')
+                    ), 0),
+                    2
+                  )::text AS net_usd
+           FROM transactions t
+           JOIN entities e ON e.id = t.entity_id
+           LEFT JOIN departments d ON d.id = t.department_id
+           WHERE t.tx_date >= date_trunc('month', current_date) - (($1::int - 1) * interval '1 month')
+             AND t.tx_date < date_trunc('month', current_date) + interval '1 month'
+             AND t.status = 'validated'
+             AND t.tx_type IN ('income', 'expense', 'adjustment')
+             ${entityFilter}
+           GROUP BY GROUPING SETS ((d.id, d.name), ())
+           ORDER BY GROUPING(d.id), department NULLS LAST`,
+          values,
+        );
+        financeByDepartment = departmentResult.rows;
+      }
     }
 
     const departments = globalDashboard
@@ -95,11 +143,13 @@ export default async function DashboardPage({
       users: userCount.rows[0]?.count ?? "—",
       approvals: pendingApprovals.rows[0]?.count ?? "—",
       trend,
+      financeByDepartment,
       departments: departments.rows,
     };
   });
   const text = (key: Parameters<typeof translate>[1]) => translate(user.locale, key);
   const locale = user.locale === "ht" ? "ht-HT" : user.locale === "en" ? "en-US" : "fr-FR";
+  const projectUpdatedAt = new Date("2026-11-04T12:00:00Z");
   const currency = (amount: string) => new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
@@ -114,6 +164,8 @@ export default async function DashboardPage({
   const incomeTotal = metrics.trend.reduce((total, row) => total + Number(row.income_usd), 0);
   const expenseTotal = metrics.trend.reduce((total, row) => total + Number(row.expense_usd), 0);
   const netTotal = incomeTotal - expenseTotal;
+  const departmentFinanceRows = metrics.financeByDepartment.filter((row) => !row.is_total);
+  const departmentFinanceTotal = metrics.financeByDepartment.find((row) => row.is_total);
   const maxTrendValue = Math.max(0, ...metrics.trend.flatMap((row) => [
     Number(row.income_usd),
     Number(row.expense_usd),
@@ -207,6 +259,24 @@ export default async function DashboardPage({
           </details>
         </section>}
         <div className="dashboard-side-stack">
+          {globalDashboard && canReadFinance && departmentFinanceTotal && <section className="panel dashboard-finance-departments" aria-labelledby="dashboard-finance-departments-title">
+            <div className="panel-heading">
+              <div><span className="eyebrow">{text("finance").toUpperCase()}</span><h2 id="dashboard-finance-departments-title">{text("financialPerformanceByDepartment")}</h2></div>
+              <span className="count-pill">{months} {text(months === 1 ? "monthShort" : "monthsShort")}</span>
+            </div>
+            <p className="dashboard-finance-scope">{text("consolidatedEntities")}</p>
+            <div className="table-scroll">
+              <table className="dashboard-finance-performance-table">
+                <thead><tr><th>{text("departmentColumn")}</th><th>{text("income")}</th><th>{text("expense")}</th><th>{text("netCashFlow")}</th></tr></thead>
+                <tbody>
+                  {departmentFinanceRows.length
+                    ? departmentFinanceRows.map((row) => <tr key={row.department_id ?? "unassigned"}><td>{row.department}</td><td>{currency(row.income_usd)}</td><td>{currency(row.expense_usd)}</td><td>{currency(row.net_usd)}</td></tr>)
+                    : <tr><td colSpan={4}>{text("noDepartmentFinanceData")}</td></tr>}
+                </tbody>
+                <tfoot><tr><th>{text("total")}</th><th>{currency(departmentFinanceTotal.income_usd)}</th><th>{currency(departmentFinanceTotal.expense_usd)}</th><th>{currency(departmentFinanceTotal.net_usd)}</th></tr></tfoot>
+              </table>
+            </div>
+          </section>}
           {metrics.departments.length > 0 && <section className="panel dashboard-departments" aria-labelledby="dashboard-departments-title">
             <div className="panel-heading"><div><span className="eyebrow">{text("administration").toUpperCase()}</span><h2 id="dashboard-departments-title">{text("departmentSummary")}</h2></div></div>
             <div className="department-summary-list">{metrics.departments.map((department) => {
@@ -226,6 +296,14 @@ export default async function DashboardPage({
           </aside>
         </div>
       </section>
+      {globalDashboard && <section className="panel dashboard-project-progress" aria-labelledby="dashboard-project-progress-title">
+        <div className="panel-heading">
+          <div><span className="eyebrow">PHASE 01 · {text("foundation").toUpperCase()}</span><h2 id="dashboard-project-progress-title">{text("currentProjectStage")}</h2></div>
+          <span className="count-pill">{text("inProgress")}</span>
+        </div>
+        <p>{text("quickStartText")}</p>
+        <small>{text("lastProjectUpdate")}: {new Intl.DateTimeFormat(locale, { dateStyle: "long", timeZone: "UTC" }).format(projectUpdatedAt)}</small>
+      </section>}
       <div className="dashboard-footnote"><span>✳</span><p>{text("accessNote")}</p></div>
     </div>
   );

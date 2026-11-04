@@ -25,9 +25,30 @@ test("escapes untrusted report content and never treats text as a formula", () =
   ));
   const sheet = strFromU8(archive["xl/worksheets/sheet1.xml"]);
   const workbook = strFromU8(archive["xl/workbook.xml"]);
-  assert.match(workbook, /<sheet name="Marketing   FY"/);
+  assert.ok(workbook.includes('<sheet name="Marketing   FY"'));
   assert.match(sheet, /t="inlineStr"><is><t xml:space="preserve">=1\+1 &amp; &lt;script&gt; &quot;quoted&quot;<\/t><\/is>/);
   assert.doesNotMatch(sheet, /<f>/);
+});
+
+test("adds a localized organization and period header to branded Excel exports", () => {
+  const archive = unzipSync(buildXlsx(
+    [{ key: "period", header: "Période" }, { key: "amount", header: "Montant" }],
+    [{ period: "2026-01", amount: "123.45" }],
+    "Finance",
+    {
+      organization: "MoJoPIKtures",
+      title: "Finances & rapports",
+      period: "Du 1 janvier au 31 janvier",
+      generatedAt: "Généré le 31 janvier",
+    },
+  ));
+  const sheet = strFromU8(archive["xl/worksheets/sheet1.xml"]);
+  assert.match(sheet, /<pane ySplit="5" topLeftCell="A6"/);
+  assert.match(sheet, /<mergeCell ref="A1:B1"\/>/);
+  assert.ok(sheet.includes("Finances &amp; rapports"));
+  assert.match(sheet, /<c r="A5" s="1"/);
+  assert.match(sheet, /<c r="B6"><v>123\.45<\/v><\/c>/);
+  assert.match(sheet, /<autoFilter ref="A5:B6"\/>/);
 });
 
 test("preserves long decimal values as strings and rejects empty reports", () => {

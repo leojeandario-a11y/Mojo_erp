@@ -43,5 +43,6 @@
   l’objectif configuré.
 - Cette implémentation est encore en cours de recette. La migration 023 est
   enregistrée sur la base QA isolée `mojo_erp_lot4_acceptance_20261101` et son
-  schéma est vérifié. Ne pas appliquer les fixtures QA sur la base principale et
-  conserver les Lots 4, 5 et 6 ouverts jusqu’à l’acceptation métier.
+  schéma est vérifié. Augustin a accepté les Lots 4 et 5 le 2026-11-04; le Lot 6
+  reste ouvert jusqu’à la fin des vérifications et son acceptation formelle.
+  Ne pas appliquer les fixtures QA sur la base principale.

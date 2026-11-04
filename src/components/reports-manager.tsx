@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import type { Locale } from "@/lib/auth";
 import type { ReportCategory } from "@/lib/reports";
 import { buildXlsx } from "@/lib/reports-export.mjs";
@@ -32,7 +33,7 @@ const categories: ReportCategory[] = ["finance", "hr", "business", "marketing", 
 const text = {
   fr: {
     eyebrow: "PILOTAGE · ANALYTIQUE", title: "Centre de rapports", intro: "Des rapports consolidés, filtrés selon vos autorisations et vos périmètres d’entité.",
-    category: "Domaine", from: "Du", to: "Au", entity: "Entité", allEntities: "Toutes les entités autorisées",
+    category: "Domaine", from: "Du", to: "Au", entity: "Entité", allEntities: "Toutes les entités autorisées", organization: "MoJoPIKtures",
     apply: "Actualiser le rapport", excel: "Exporter Excel", pdf: "Imprimer / PDF", loading: "Chargement…",
     select: "Sélectionnez un domaine pour afficher le rapport.", noRows: "Aucune donnée pour cette période et ce périmètre.",
     rows: "lignes", generated: "Généré le", truncated: "Aperçu limité aux 1 000 premières lignes. Affinez la période ou l’entité pour obtenir un export complet.",
@@ -63,7 +64,7 @@ const text = {
   },
   ht: {
     eyebrow: "JESYON · ANALIZ", title: "Sant rapò", intro: "Rapò konsolide ki respekte otorizasyon ak limit antite ou.",
-    category: "Domen", from: "Soti", to: "Jiska", entity: "Antite", allEntities: "Tout antite ou gen dwa wè",
+    category: "Domen", from: "Soti", to: "Jiska", entity: "Antite", allEntities: "Tout antite ou gen dwa wè", organization: "MoJoPIKtures",
     apply: "Mete rapò a ajou", excel: "Ekspòte Excel", pdf: "Enprime / PDF", loading: "Ap chaje…",
     select: "Chwazi yon domèn pou wè rapò a.", noRows: "Pa gen done pou peryòd ak limit sa a.",
     rows: "liy", generated: "Kreye nan", truncated: "Se 1 000 premye liy yo sèlman ki parèt. Redui peryòd la oswa chwazi yon antite pou ekspòtasyon konplè.",
@@ -94,7 +95,7 @@ const text = {
   },
   en: {
     eyebrow: "BUSINESS INTELLIGENCE · ANALYTICS", title: "Reporting center", intro: "Consolidated reports scoped to your entity access and permissions.",
-    category: "Domain", from: "From", to: "To", entity: "Entity", allEntities: "All entities you can access",
+    category: "Domain", from: "From", to: "To", entity: "Entity", allEntities: "All entities you can access", organization: "MoJoPIKtures",
     apply: "Refresh report", excel: "Export Excel", pdf: "Print / PDF", loading: "Loading…",
     select: "Choose a domain to view its report.", noRows: "No data for this period and scope.",
     rows: "rows", generated: "Generated", truncated: "Showing the first 1,000 rows only. Narrow the date range or entity to export the complete result.",
@@ -140,6 +141,10 @@ function localDate(date: Date) {
 
 export function ReportsManager({ locale }: { locale: Locale }) {
   const copy = text[locale];
+  const dateLocale = locale === "ht" ? "ht-HT" : locale === "en" ? "en-US" : "fr-FR";
+  const formatDate = (value: string, withTime = false) => new Intl.DateTimeFormat(dateLocale, withTime
+    ? { dateStyle: "medium", timeStyle: "short" }
+    : { dateStyle: "long", timeZone: "UTC" }).format(new Date(value));
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [category, setCategory] = useState<ReportCategory | "">("");
   const [entityId, setEntityId] = useState("");
@@ -270,6 +275,12 @@ export function ReportsManager({ locale }: { locale: Locale }) {
         columns.map((key) => ({ key, header: copy.columns[key as keyof typeof copy.columns] })),
         report.rows,
         copy[category],
+        {
+          organization: copy.organization,
+          title: copy[category],
+          period: `${copy.from}: ${formatDate(report.from)} – ${copy.to}: ${formatDate(report.to)} · ${copy.entity}: ${selectedCatalog?.entities.find((entity) => entity.id === entityId)?.name ?? copy.allEntities}`,
+          generatedAt: `${copy.generated}: ${formatDate(report.generatedAt, true)}`,
+        },
       );
       const blob = new Blob([new Uint8Array(output)], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -376,6 +387,17 @@ export function ReportsManager({ locale }: { locale: Locale }) {
 
       {category ? (
         <section className="reports-result">
+          {report && <header className="reports-print-header">
+            <Image src="/mojo-logo.png" alt={copy.organization} width={1820} height={820} />
+            <div>
+              <span>{copy.organization}</span>
+              <h2>{copy[category]}</h2>
+              <p>{copy.descriptions[category]}</p>
+              <p>{copy.from}: {formatDate(report.from)} – {copy.to}: {formatDate(report.to)}</p>
+              <p>{copy.entity}: {selectedCatalog?.entities.find((entity) => entity.id === entityId)?.name ?? copy.allEntities}</p>
+              <small>{copy.generated}: {formatDate(report.generatedAt, true)}</small>
+            </div>
+          </header>}
           <div className="reports-result-heading">
             <div>
               <span className="eyebrow">{copy[category]}</span>
@@ -408,7 +430,7 @@ export function ReportsManager({ locale }: { locale: Locale }) {
 
           <div className="reports-table-meta">
             <span>{report ? `${report.rowCount} ${copy.rows}` : copy.select}</span>
-            {report && <time dateTime={report.generatedAt}>{copy.generated} {new Intl.DateTimeFormat(locale === "ht" ? "ht-HT" : locale === "en" ? "en-US" : "fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(report.generatedAt))}</time>}
+            {report && <time dateTime={report.generatedAt}>{copy.generated} {formatDate(report.generatedAt, true)}</time>}
           </div>
           {report?.truncated && <p className="reports-truncated" role="status">{copy.truncated}</p>}
           {loading ? <div className="reports-empty" aria-live="polite">{copy.loading}</div>
