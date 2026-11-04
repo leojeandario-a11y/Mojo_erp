@@ -30,8 +30,8 @@ ALTER TABLE notifications DROP CONSTRAINT notifications_kind_check;
 ALTER TABLE notifications ADD CONSTRAINT notifications_kind_check
   CHECK (kind IN
     ('approval_needed','invoice_overdue','payment_expected','low_stock','contract_expiring',
-     'budget_exceeded','project_late','hr_request','fund_withdrawal','monthly_report',
-     'scheduled_report','system'));
+     'budget_exceeded','project_late','hr_request','fund_withdrawal','fund_target_reached',
+     'monthly_report','rent_due','scheduled_report','system'));
 
 CREATE FUNCTION claim_due_report_schedules()
 RETURNS TABLE (

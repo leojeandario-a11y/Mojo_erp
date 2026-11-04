@@ -41,8 +41,41 @@
   formules; l’impression navigateur permet de produire un PDF. Des notifications
   in-app idempotentes signalent le rapport mensuel précédent et l’atteinte de
   l’objectif configuré.
+- Le centre de rapports fournit la synthèse financière 6.7. La marge nette est
+  `(revenus − dépenses) / revenus`, et reste vide si les revenus sont nuls.
+  Trésorerie, fonds, budgets, créances et dettes sont présentés à la date de fin,
+  par devise native sans conversion inter-devises. Seuls les budgets actifs
+  approuvés sont comparés aux dépenses validées de leur période jusqu’à cette date;
+  les conversions impossibles pour taux manquant restent signalées plutôt que
+  présentées comme zéro. Les permissions propres à chaque source et entité
+  filtrent les lignes. La synthèse est incluse à l’impression et dans un onglet
+  dédié de l’export Excel.
+- Recette QA du 2026-11-04 : le helper réel `createAutomaticFundContribution`,
+  appelé deux fois sur le même revenu, a produit une contribution de 50,00 USD
+  (taux approuvé de 5,00 %) et exactement un mouvement sortant et un entrant;
+  le second appel a retourné `null`. Dans une transaction séparée, deux retraits
+  synthétiques de 60,00 USD sur un solde de 100,00 USD ont donné une première
+  approbation et un refus de la seconde après réservation du premier montant.
+  Deux demandes de 60,00 USD au stade DG, après leur étape DAF, ont été
+  approuvées simultanément depuis la session navigateur DG QA par les vrais
+  endpoints `POST /api/v1/approvals/[id]` avec cookie de session : une réponse
+  200 et une réponse 409 pour solde insuffisant. La base confirme qu’une seule
+  demande réserve 60,00 USD. Les deux retraits, demandes d’approbation et
+  notifications temporaires ont été supprimés par le propriétaire QA. Après
+  nettoyage : solde 100,00 USD, un seul retrait historique contre-passé et
+  aucune fixture/réservation active. Aucun changement sur `mojo_erp`; des traces
+  d’audit append-only peuvent rester dans la base QA isolée.
+- Le bouton d’export sur l’interface authentifiée a généré un Blob XLSX de
+  4 338 octets. L’en-tête ZIP et `xl/workbook.xml` sont valides et exposent les
+  onglets `Finance` et `Synthèse financière`. L’ouverture d’un fichier téléchargé
+  dans Excel reste à confirmer.
 - Cette implémentation est encore en cours de recette. La migration 023 est
   enregistrée sur la base QA isolée `mojo_erp_lot4_acceptance_20261101` et son
   schéma est vérifié. Augustin a accepté les Lots 4 et 5 le 2026-11-04; le Lot 6
   reste ouvert jusqu’à la fin des vérifications et son acceptation formelle.
+  La connexion QA utilise un compte DG parallèle sur `127.0.0.1:3001`, distinct
+  du cookie de `localhost:3000`; un défaut SQL du compteur de tentatives a été
+  corrigé et les migrations 032/033 nécessaires à la session appliquées sur la
+  QA seulement. La migration 034 relève du Lot 16 et exige un audit séparé de
+  l’historique avant toute application.
   Ne pas appliquer les fixtures QA sur la base principale.

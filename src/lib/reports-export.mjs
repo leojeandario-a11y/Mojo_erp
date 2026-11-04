@@ -42,47 +42,87 @@ function packageFile(content) {
  * @param {Record<string, string | null>[]} rows
  * @param {string} sheetName
  * @param {{ organization: string, title: string, period: string, generatedAt: string } | null} [metadata]
+ * @param {{ columns: { key: string, header: string }[], rows: Record<string, string | null>[], sheetName: string }[]} [additionalSheets]
  */
-export function buildXlsx(columns, rows, sheetName, metadata = null) {
+export function buildXlsx(columns, rows, sheetName, metadata = null, additionalSheets = []) {
   if (!columns.length) throw new RangeError("An Excel report needs at least one column.");
-  const safeName = ["[", "]", ":", "*", "?", "/", "\\"]
-    .reduce((name, character) => name.replaceAll(character, " "), String(sheetName))
-    .trim().slice(0, 31) || "Report";
-  const lastColumn = columnName(columns.length - 1);
-  const headerRow = metadata ? 5 : 1;
-  const metadataMerges = metadata && columns.length > 1
-    ? `<mergeCells count="4">${[1, 2, 3, 4].map((row) => `<mergeCell ref="A${row}:${lastColumn}${row}"/>`).join("")}</mergeCells>`
-    : "";
-  const rowsXml = [
-    ...(metadata ? [
-      `<row r="1" ht="24" customHeight="1"><c r="A1" s="2" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.organization)}</t></is></c></row>`,
-      `<row r="2" ht="21" customHeight="1"><c r="A2" s="3" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.title)}</t></is></c></row>`,
-      `<row r="3"><c r="A3" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.period)}</t></is></c></row>`,
-      `<row r="4"><c r="A4" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.generatedAt)}</t></is></c></row>`,
-    ] : []),
-    `<row r="${headerRow}">${columns.map((column, index) =>
-      `<c r="${columnName(index)}${headerRow}" s="1" t="inlineStr"><is><t xml:space="preserve">${xmlText(column.header)}</t></is></c>`,
-    ).join("")}</row>`,
-    ...rows.map((row, rowIndex) => {
-      const rowNumber = rowIndex + headerRow + 1;
-      return `<row r="${rowNumber}">${columns.map((column, columnIndex) =>
-        cell(`${columnName(columnIndex)}${rowNumber}`, row[column.key], ![
-          "entity", "department", "stage", "currency", "campaign", "status", "project", "period",
-        ].includes(column.key)),
-      ).join("")}</row>`;
-    }),
-  ].join("");
-  const columnWidths = columns.map((column, index) =>
-    `<col min="${index + 1}" max="${index + 1}" width="${Math.min(36, Math.max(12, column.header.length + 3))}" customWidth="1"/>`,
+  const allSheets = [{ columns, rows, sheetName }, ...additionalSheets];
+  if (allSheets.some((sheet) => !sheet.columns.length)) {
+    throw new RangeError("Every Excel report sheet needs at least one column.");
+  }
+  const usedNames = new Set();
+  const safeName = (value) => {
+    const base = ["[", "]", ":", "*", "?", "/", "\\"]
+      .reduce((name, character) => name.replaceAll(character, " "), String(value))
+      .trim().slice(0, 31) || "Report";
+    let name = base;
+    for (let suffix = 2; usedNames.has(name.toLocaleLowerCase()); suffix += 1) {
+      const ending = ` (${suffix})`;
+      name = `${base.slice(0, 31 - ending.length)}${ending}`;
+    }
+    usedNames.add(name.toLocaleLowerCase());
+    return name;
+  };
+  const sheets = allSheets.map((sheet, index) => {
+    const name = safeName(sheet.sheetName);
+    const lastColumn = columnName(sheet.columns.length - 1);
+    const headerRow = metadata ? 5 : 1;
+    const metadataMerges = metadata && sheet.columns.length > 1
+      ? `<mergeCells count="4">${[1, 2, 3, 4].map((row) => `<mergeCell ref="A${row}:${lastColumn}${row}"/>`).join("")}</mergeCells>`
+      : "";
+    const rowsXml = [
+      ...(metadata ? [
+        `<row r="1" ht="24" customHeight="1"><c r="A1" s="2" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.organization)}</t></is></c></row>`,
+        `<row r="2" ht="21" customHeight="1"><c r="A2" s="3" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.title)}</t></is></c></row>`,
+        `<row r="3"><c r="A3" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.period)}</t></is></c></row>`,
+        `<row r="4"><c r="A4" t="inlineStr"><is><t xml:space="preserve">${xmlText(metadata.generatedAt)}</t></is></c></row>`,
+      ] : []),
+      `<row r="${headerRow}">${sheet.columns.map((column, columnIndex) =>
+        `<c r="${columnName(columnIndex)}${headerRow}" s="1" t="inlineStr"><is><t xml:space="preserve">${xmlText(column.header)}</t></is></c>`,
+      ).join("")}</row>`,
+      ...sheet.rows.map((row, rowIndex) => {
+        const rowNumber = rowIndex + headerRow + 1;
+        return `<row r="${rowNumber}">${sheet.columns.map((column, columnIndex) =>
+          cell(`${columnName(columnIndex)}${rowNumber}`, row[column.key], ![
+            "entity", "department", "stage", "currency", "campaign", "status", "project",
+            "period", "metric", "subject",
+          ].includes(column.key)),
+        ).join("")}</row>`;
+      }),
+    ].join("");
+    const columnWidths = sheet.columns.map((column, columnIndex) =>
+      `<col min="${columnIndex + 1}" max="${columnIndex + 1}" width="${Math.min(36, Math.max(12, column.header.length + 3))}" customWidth="1"/>`,
+    ).join("");
+    return {
+      name,
+      index: index + 1,
+      lastColumn,
+      headerRow,
+      rowCount: sheet.rows.length,
+      columnWidths,
+      rowsXml,
+      metadataMerges,
+    };
+  });
+  const sheetContentTypes = sheets.map((sheet) =>
+    `<Override PartName="/xl/worksheets/sheet${sheet.index}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`,
   ).join("");
-
-  return zipSync({
+  const workbookSheets = sheets.map((sheet) =>
+    `<sheet name="${xmlText(sheet.name)}" sheetId="${sheet.index}" r:id="rId${sheet.index}"/>`,
+  ).join("");
+  const workbookRelationships = [
+    ...sheets.map((sheet) =>
+      `<Relationship Id="rId${sheet.index}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${sheet.index}.xml"/>`,
+    ),
+    `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`,
+  ].join("");
+  const files = {
     "[Content_Types].xml": packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
  <Default Extension="xml" ContentType="application/xml"/>
  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
- <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+ ${sheetContentTypes}
  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
 </Types>`),
@@ -93,12 +133,12 @@ export function buildXlsx(columns, rows, sheetName, metadata = null) {
 </Relationships>`),
     "xl/workbook.xml": packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
- <sheets><sheet name="${xmlText(safeName)}" sheetId="1" r:id="rId1"/></sheets>
+ <bookViews><workbookView/></bookViews>
+ <sheets>${workbookSheets}</sheets>
 </workbook>`),
     "xl/_rels/workbook.xml.rels": packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
- <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
- <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+ ${workbookRelationships}
 </Relationships>`),
     "xl/styles.xml": packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -109,19 +149,22 @@ export function buildXlsx(columns, rows, sheetName, metadata = null) {
  <cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" applyFont="1" applyFill="1" xfId="0"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" applyFont="1" xfId="0"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0" applyFont="1" xfId="0"/></cellXfs>
  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`),
-    "xl/worksheets/sheet1.xml": packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
- <sheetFormatPr defaultRowHeight="15"/>
- <cols>${columnWidths}</cols>
- <sheetData>${rowsXml}</sheetData>
-${metadataMerges}
-<autoFilter ref="A${headerRow}:${lastColumn}${rows.length + headerRow}"/>
-</worksheet>`),
     "docProps/core.xml": packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
- <dc:creator>MOJO ERP</dc:creator><dc:title>${xmlText(safeName)}</dc:title>
+ <dc:creator>MOJO ERP</dc:creator><dc:title>${xmlText(sheets[0].name)}</dc:title>
  <dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
 </cp:coreProperties>`),
-  });
+  };
+  for (const sheet of sheets) {
+    files[`xl/worksheets/sheet${sheet.index}.xml`] = packageFile(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="${sheet.headerRow}" topLeftCell="A${sheet.headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+ <sheetFormatPr defaultRowHeight="15"/>
+ <cols>${sheet.columnWidths}</cols>
+ <sheetData>${sheet.rowsXml}</sheetData>
+<autoFilter ref="A${sheet.headerRow}:${sheet.lastColumn}${sheet.rowCount + sheet.headerRow}"/>
+${sheet.metadataMerges}
+</worksheet>`);
+  }
+  return zipSync(files);
 }

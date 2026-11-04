@@ -58,8 +58,9 @@ export async function POST(request: Request) {
       const failedLogins = user.failed_logins + 1;
       await client.query(
         `UPDATE users
-         SET failed_logins = $2,
-             locked_until = CASE WHEN $2 >= $3 THEN now() + interval '15 minutes' ELSE locked_until END
+         SET failed_logins = $2::integer,
+             locked_until = CASE WHEN $2::integer >= $3::integer
+               THEN now() + interval '15 minutes' ELSE locked_until END
          WHERE id = $1`,
         [user.id, failedLogins, maxFailedLogins],
       );

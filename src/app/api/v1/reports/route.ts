@@ -15,6 +15,33 @@ const querySchema = z.object({
 
 const MAX_ROWS = 1000;
 
+const incomeAmountExpression = `CASE
+  WHEN t.tx_type = 'income' AND source_original.id IS NOT NULL THEN 0
+  WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase'
+    AND source_original.adjustment_direction = 'decrease' THEN 0
+  WHEN t.tx_type = 'expense' AND source_original.tx_type = 'income' THEN -t.amount_usd
+  WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease'
+    AND source_original.tx_type = 'adjustment'
+    AND source_original.adjustment_direction = 'increase' THEN -t.amount_usd
+  WHEN t.tx_type = 'income' THEN t.amount_usd
+  WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase' THEN t.amount_usd
+  ELSE 0
+END`;
+
+const expenseAmountExpression = `CASE
+  WHEN t.tx_type = 'expense' AND source_original.tx_type = 'income' THEN 0
+  WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease'
+    AND source_original.tx_type = 'adjustment'
+    AND source_original.adjustment_direction = 'increase' THEN 0
+  WHEN t.tx_type = 'income' AND source_original.tx_type = 'expense' THEN -t.amount_usd
+  WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase'
+    AND source_original.tx_type = 'adjustment'
+    AND source_original.adjustment_direction = 'decrease' THEN -t.amount_usd
+  WHEN t.tx_type = 'expense' THEN t.amount_usd
+  WHEN t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease' THEN t.amount_usd
+  ELSE 0
+END`;
+
 type FinancialSummaryRow = {
   entity: string;
   metric: string;
@@ -71,21 +98,19 @@ async function buildFinancialSummary(
   }>(
     `WITH totals AS (
        SELECT e.id, e.name AS entity,
-              COALESCE(SUM(t.amount_usd) FILTER (
-                WHERE t.tx_type = 'income'
-                  OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase')
-              ), 0) AS income_usd,
-              COALESCE(SUM(t.amount_usd) FILTER (
-                WHERE t.tx_type = 'expense'
-                  OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease')
-              ), 0) AS expense_usd
+              COALESCE(SUM(${incomeAmountExpression}), 0) AS income_usd,
+              COALESCE(SUM(${expenseAmountExpression}), 0) AS expense_usd
        FROM entities e
        LEFT JOIN transactions t ON t.entity_id = e.id
          AND t.tx_date >= $1::date AND t.tx_date <= $2::date
-         AND t.status = 'validated'
+         AND (t.status = 'validated' OR (
+           t.status = 'reversed'
+           AND EXISTS (SELECT 1 FROM transactions reversal
+             WHERE reversal.reversal_of_id = t.id AND reversal.tx_date > $2::date)
+         ))
          AND t.tx_type IN ('income', 'expense', 'adjustment')
-       WHERE e.is_active
-         AND app_has_entity_permission('finance.report.read', e.id)
+       LEFT JOIN transactions source_original ON source_original.id = t.reversal_of_id
+       WHERE app_has_entity_permission('finance.report.read', e.id)
          AND ($3::uuid IS NULL OR e.id = $3::uuid)
        GROUP BY e.id
      )
@@ -226,10 +251,12 @@ async function buildFinancialSummary(
        ) fx ON true
        WHERE tx.entity_id = b.entity_id
          AND (
-           tx.tx_type = 'expense'
-           OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'decrease')
-           OR (tx.tx_type = 'income' AND source_original.tx_type = 'expense')
-           OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'increase'
+         (tx.tx_type = 'expense' AND source_original.tx_type IS DISTINCT FROM 'income')
+         OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'decrease'
+           AND NOT (source_original.tx_type = 'adjustment'
+             AND source_original.adjustment_direction = 'increase'))
+         OR (tx.tx_type = 'income' AND source_original.tx_type = 'expense')
+         OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'increase'
              AND source_original.tx_type = 'adjustment' AND source_original.adjustment_direction = 'decrease')
          )
          AND tx.status IN ('validated', 'reversed')
@@ -376,27 +403,21 @@ async function buildRows(
       return client.query(
         `SELECT to_char(date_trunc('month', t.tx_date), 'YYYY-MM') AS period,
                 e.name AS entity, COALESCE(d.name, '—') AS department,
-                round(COALESCE(sum(t.amount_usd) FILTER (
-                  WHERE t.tx_type = 'income'
-                    OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase')
-                ), 0), 2)::text AS income_usd,
-                round(COALESCE(sum(t.amount_usd) FILTER (
-                  WHERE t.tx_type = 'expense'
-                    OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease')
-                ), 0), 2)::text AS expense_usd,
-                round(COALESCE(sum(t.amount_usd) FILTER (
-                  WHERE t.tx_type = 'income'
-                    OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'increase')
-                ), 0) - COALESCE(sum(t.amount_usd) FILTER (
-                  WHERE t.tx_type = 'expense'
-                    OR (t.tx_type = 'adjustment' AND t.adjustment_direction = 'decrease')
-                ), 0), 2)::text AS net_usd,
+                round(COALESCE(sum(${incomeAmountExpression}), 0), 2)::text AS income_usd,
+                round(COALESCE(sum(${expenseAmountExpression}), 0), 2)::text AS expense_usd,
+                round(COALESCE(sum(${incomeAmountExpression}), 0)
+                  - COALESCE(sum(${expenseAmountExpression}), 0), 2)::text AS net_usd,
                 count(*)::text AS transactions
          FROM transactions t
          JOIN entities e ON e.id = t.entity_id
          LEFT JOIN departments d ON d.id = t.department_id
+         LEFT JOIN transactions source_original ON source_original.id = t.reversal_of_id
          WHERE t.tx_date >= $1::date AND t.tx_date <= $2::date
-           AND t.status = 'validated'
+           AND (t.status = 'validated' OR (
+             t.status = 'reversed'
+             AND EXISTS (SELECT 1 FROM transactions reversal
+               WHERE reversal.reversal_of_id = t.id AND reversal.tx_date > $2::date)
+           ))
            AND t.tx_type IN ('income', 'expense', 'adjustment')
            AND ${scope}
          GROUP BY date_trunc('month', t.tx_date), e.id, d.id

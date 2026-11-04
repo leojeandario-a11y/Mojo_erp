@@ -108,8 +108,10 @@ export async function GET(request: Request) {
              ) fx ON true
              WHERE tx.entity_id = b.entity_id
                AND (
-                 tx.tx_type = 'expense'
-                 OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'decrease')
+                 (tx.tx_type = 'expense' AND source_original.tx_type IS DISTINCT FROM 'income')
+                 OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'decrease'
+                   AND NOT (source_original.tx_type = 'adjustment'
+                     AND source_original.adjustment_direction = 'increase'))
                  OR (tx.tx_type = 'income' AND source_original.tx_type = 'expense')
                  OR (tx.tx_type = 'adjustment' AND tx.adjustment_direction = 'increase'
                    AND source_original.tx_type = 'adjustment' AND source_original.adjustment_direction = 'decrease')

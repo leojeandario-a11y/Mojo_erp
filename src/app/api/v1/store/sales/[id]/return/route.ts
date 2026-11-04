@@ -8,12 +8,21 @@ import {
   requireStorePermission,
   StorePolicyError,
 } from "@/lib/store";
+import { isWithinStoreReturnWindow } from "@/lib/store-return-policy.mjs";
 
-const returnSchema = z.object({
-  action: z.enum(["return", "void"]),
-  accountId: z.uuid(),
-  reason: z.string().trim().min(3).max(500),
-}).strict();
+const returnSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("return"),
+    receiptNumber: z.string().trim().min(1).max(120),
+    conditionConfirmed: z.literal(true),
+    reason: z.string().trim().min(3).max(500),
+  }).strict(),
+  z.object({
+    action: z.literal("void"),
+    accountId: z.uuid(),
+    reason: z.string().trim().min(3).max(500),
+  }).strict(),
+]);
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const actor = await getSession(request.headers);
@@ -38,14 +47,37 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         fx_rate_to_usd: string;
         total: string;
         status: string;
+        sold_date: string;
+        business_date: string;
       }>(
-        `SELECT receipt_number,currency,fx_rate_to_usd::text,total::text,status
+        `SELECT receipt_number,currency,fx_rate_to_usd::text,total::text,status,
+                sold_at::date::text AS sold_date,CURRENT_DATE::text AS business_date
          FROM sales WHERE id=$1 AND entity_id=$2 FOR UPDATE`,
         [id, store.id],
       );
       if (!sale.rowCount) throw new StorePolicyError("Sale not found.", 404);
       if (sale.rows[0].status !== "completed") {
         throw new StorePolicyError("This sale has already been returned or voided.", 409);
+      }
+      if (parsed.data.action === "return") {
+        if (parsed.data.receiptNumber !== sale.rows[0].receipt_number) {
+          throw new StorePolicyError("The receipt number does not match this sale.", 400);
+        }
+        if (!isWithinStoreReturnWindow(sale.rows[0].sold_date, sale.rows[0].business_date)) {
+          throw new StorePolicyError("Returns are accepted only through the seventh calendar day, including the purchase day.", 409);
+        }
+      }
+
+      let refundAccountId = parsed.data.action === "void" ? parsed.data.accountId : null;
+      if (parsed.data.action === "return") {
+        const payments = await client.query<{ method: string; account_id: string | null }>(
+          "SELECT method,account_id FROM sale_payments WHERE sale_id=$1 FOR UPDATE",
+          [id],
+        );
+        if (payments.rowCount !== 1 || !payments.rows[0].account_id || payments.rows[0].method === "credit") {
+          throw new StorePolicyError("This sale has no single refundable payment method recorded.", 409);
+        }
+        refundAccountId = payments.rows[0].account_id;
       }
 
       const saleItems = await client.query<{
@@ -77,18 +109,21 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         [[...new Set(saleItems.rows.map(({ product_id }) => product_id))]],
       );
 
-      const account = await client.query<{ currency: string; account_type: string }>(
-        "SELECT currency,account_type FROM accounts WHERE id=$1 AND entity_id=$2 AND is_active FOR UPDATE",
-        [parsed.data.accountId, store.id],
+      const account = await client.query<{ currency: string; account_type: string; is_active: boolean }>(
+        "SELECT currency,account_type,is_active FROM accounts WHERE id=$1 AND entity_id=$2 FOR UPDATE",
+        [refundAccountId, store.id],
       );
       if (!account.rowCount) throw new StorePolicyError("Select an active MOJO Store refund account.", 400);
+      if (!account.rows[0].is_active) {
+        throw new StorePolicyError("The original payment account is inactive; reactivate it before refunding this sale.", 409);
+      }
       if (account.rows[0].currency !== sale.rows[0].currency) {
-        throw new StorePolicyError("Refund account currency must match the original sale.", 400);
+        throw new StorePolicyError("The original payment account currency does not match the sale.", 409);
       }
       if (account.rows[0].account_type === "cash") {
         const session = await client.query(
           "SELECT 1 FROM cash_sessions WHERE account_id=$1 AND session_date=CURRENT_DATE AND status='open' FOR UPDATE",
-          [parsed.data.accountId],
+          [refundAccountId],
         );
         if (!session.rowCount) throw new StorePolicyError("Open the Store cash session before issuing a cash refund.", 409);
       }
@@ -110,16 +145,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
          VALUES ($1,$2,'expense',$3,$4,$5,$6::numeric,$7,$8::numeric,$9,'sales',$10,'validated',$11,$11,now())
          RETURNING id`,
         [
-          store.id, txNumber, businessDate.today, parsed.data.accountId, expenseCategory.rows[0].id,
+          store.id, txNumber, businessDate.today, refundAccountId, expenseCategory.rows[0].id,
           sale.rows[0].total, sale.rows[0].currency, sale.rows[0].fx_rate_to_usd,
           `${parsed.data.action === "void" ? "Void" : "Refund"} of Store receipt ${sale.rows[0].receipt_number}: ${parsed.data.reason}`,
           id, actor.id,
         ],
       );
       await client.query(
-        `INSERT INTO store_sale_returns(sale_id,account_id,transaction_id,reason,returned_by)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [id, parsed.data.accountId, transaction.rows[0].id, parsed.data.reason, actor.id],
+        `INSERT INTO store_sale_returns(
+           sale_id,account_id,transaction_id,reason,returned_by,receipt_number_confirmed,condition_confirmed
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [
+          id, refundAccountId, transaction.rows[0].id, parsed.data.reason, actor.id,
+          parsed.data.action === "return" ? parsed.data.receiptNumber : null,
+          parsed.data.action === "return" && parsed.data.conditionConfirmed,
+        ],
       );
       for (const item of saleItems.rows) {
         await client.query(

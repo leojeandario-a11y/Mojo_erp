@@ -23,12 +23,28 @@ type ReportData = {
   from: string;
   to: string;
   rows: ReportRow[];
+  financialSummary?: ReportRow[];
   rowCount: number;
   truncated: boolean;
   generatedAt: string;
 };
 
 const categories: ReportCategory[] = ["finance", "hr", "business", "marketing", "operations", "store"];
+
+async function fetchReportData(
+  selectedCategory: ReportCategory,
+  start: string,
+  end: string,
+  selectedEntity: string,
+  errorMessage: string,
+): Promise<ReportData> {
+  const params = new URLSearchParams({ category: selectedCategory, from: start, to: end });
+  if (selectedEntity) params.set("entityId", selectedEntity);
+  const response = await fetch(`/api/v1/reports?${params}`, { cache: "no-store" });
+  const body = await response.json() as ReportData & { error?: string };
+  if (!response.ok) throw new Error(body.error || errorMessage);
+  return body;
+}
 
 const text = {
   fr: {
@@ -44,9 +60,15 @@ const text = {
     nextRun: "Prochaine exécution", removeSchedule: "Supprimer", scheduling: "Enregistrement…",
     scheduleMissing: "La planification nécessite la migration de base de données 034, à appliquer avec un compte propriétaire.",
     scheduleNote: "Les rappels sont envoyés dans l’application à 08:00 UTC. Configurez la tâche planifiée Windows décrite dans le README. Aucun fichier PDF ou courriel n’est envoyé automatiquement.",
+    financialSummaryTitle: "Synthèse financière",
+    financialSummaryNote: "Résultat sur la période; trésorerie, fonds, budgets, créances et dettes à la date de fin. Les montants restent dans leur devise d’origine. Les lignes visibles respectent les droits du rôle.",
+    financialMetrics: {
+      result: "Résultat et rentabilité", treasury: "Trésorerie", emergency_fund: "Fonds d’urgence",
+      budget: "Budget approuvé actif", receivable: "Créances clients", debt: "Dettes",
+    },
     finance: "Finance", hr: "Ressources humaines", business: "Affaires", marketing: "Marketing", operations: "Opérations", store: "MOJO Store",
     descriptions: {
-      finance: "Évolution mensuelle des revenus, dépenses et ajustements validés par entité et direction.",
+      finance: "Évolution mensuelle et synthèse des indicateurs financiers consolidés.",
       hr: "Présences mensuelles agrégées par entité et direction. Aucune donnée salariale ni identité personnelle.",
       business: "Pipeline d’opportunités par étape et devise. Les montants ne sont pas additionnés entre devises.",
       marketing: "Campagnes, budgets prévus dans leur devise d’origine et dépenses validées en USD, si votre rôle Finance les autorise.",
@@ -59,6 +81,8 @@ const text = {
       stage: "Étape", currency: "Devise", opportunities: "Opportunités", estimated: "Estimé", campaign: "Campagne", status: "Statut",
       budget: "Budget prévu", spent_usd: "Dépenses USD", project: "Projet", progress_pct: "Progression %",
       expenses_usd: "Coûts USD", receipts: "Ventes", gross_sales_usd: "Ventes brutes USD", returned_sales_usd: "Retours USD", net_sales_usd: "Ventes nettes USD",
+      metric: "Indicateur", subject: "Élément", balance: "Solde", target_amount: "Objectif", planned_amount: "Prévu",
+      actual_amount: "Réalisé", net_margin_pct: "Marge nette %", missing_rate_count: "Taux manquant",
     },
     errors: { catalog: "Impossible de charger le catalogue de rapports.", report: "Impossible de charger ce rapport.", export: "Impossible de créer le fichier Excel." },
   },
@@ -75,9 +99,15 @@ const text = {
     nextRun: "Pwochen egzekisyon", removeSchedule: "Retire", scheduling: "Ap anrejistre…",
     scheduleMissing: "Planifikasyon an bezwen migrasyon baz done 034 la; se yon pwopriyetè baz done ki dwe aplike li.",
     scheduleNote: "Rapèl yo parèt nan aplikasyon an a 08:00 UTC. Konfigire travay Windows ki dekri nan README la. Pa gen PDF oswa imèl ki voye otomatikman.",
+    financialSummaryTitle: "Rezime finansye",
+    financialSummaryNote: "Rezilta pou peryòd la; lajan kach, fon, bidjè, lajan kliyan dwe ak dèt nan dat fen a. Montan yo rete nan lajan orijinal yo. Wòl ou a detèmine ki liy ki parèt.",
+    financialMetrics: {
+      result: "Rezilta ak rentabilite", treasury: "Lajan kach", emergency_fund: "Fon ijans",
+      budget: "Bidjè apwouve aktif", receivable: "Lajan kliyan dwe", debt: "Dèt",
+    },
     finance: "Finans", hr: "Resous imèn", business: "Biznis", marketing: "Maketing", operations: "Operasyon", store: "MOJO Store",
     descriptions: {
-      finance: "Revni, depans ak ajisteman ki valide pa mwa, antite ak direksyon.",
+      finance: "Revni, depans ak ajisteman pa mwa, ansanm ak rezime endikatè finansye yo.",
       hr: "Prezans chak mwa pa antite ak direksyon. Pa gen done sou salè ni idantite moun.",
       business: "Opòtinite pa etap ak lajan. Montan diferan lajan pa melanje.",
       marketing: "Kanpay, bidjè nan lajan orijinal la ak depans valide an USD si w gen dwa Finans.",
@@ -90,6 +120,8 @@ const text = {
       stage: "Etap", currency: "Lajan", opportunities: "Opòtinite", estimated: "Estimasyon", campaign: "Kanpay", status: "Estati",
       budget: "Bidjè prevwa", spent_usd: "Depans USD", project: "Pwojè", progress_pct: "Pwogrè %",
       expenses_usd: "Depans USD", receipts: "Vant", gross_sales_usd: "Vant brit USD", returned_sales_usd: "Retou USD", net_sales_usd: "Vant nèt USD",
+      metric: "Endikatè", subject: "Eleman", balance: "Balans", target_amount: "Objektif", planned_amount: "Prevwa",
+      actual_amount: "Reyalize", net_margin_pct: "Marge nèt %", missing_rate_count: "Pousantaj ki manke",
     },
     errors: { catalog: "Pa kapab chaje lis rapò yo.", report: "Pa kapab chaje rapò sa a.", export: "Pa kapab kreye fichye Excel la." },
   },
@@ -106,9 +138,15 @@ const text = {
     nextRun: "Next run", removeSchedule: "Remove", scheduling: "Saving…",
     scheduleMissing: "Scheduling requires database migration 034, applied with a database-owner account.",
     scheduleNote: "Reminders appear in-app at 08:00 UTC. Configure the Windows scheduled task described in README. PDF files and emails are not sent automatically.",
+    financialSummaryTitle: "Financial summary",
+    financialSummaryNote: "Period result; treasury, funds, budgets, receivables, and debts as of the end date. Amounts remain in their native currencies. Visible rows follow the current role’s permissions.",
+    financialMetrics: {
+      result: "Result and profitability", treasury: "Treasury", emergency_fund: "Emergency fund",
+      budget: "Active approved budget", receivable: "Accounts receivable", debt: "Debt",
+    },
     finance: "Finance", hr: "Human resources", business: "Commercial", marketing: "Marketing", operations: "Operations", store: "MOJO Store",
     descriptions: {
-      finance: "Monthly validated income, expenses, and adjustments by entity and department.",
+      finance: "Monthly activity and consolidated financial indicators.",
       hr: "Monthly attendance totals by entity and department. No salary or personal identity data.",
       business: "Opportunity pipeline by stage and currency. Amounts are not added across currencies.",
       marketing: "Campaigns, planned budgets in their original currency, and validated USD spend where Finance access allows.",
@@ -121,6 +159,8 @@ const text = {
       stage: "Stage", currency: "Currency", opportunities: "Opportunities", estimated: "Estimated", campaign: "Campaign", status: "Status",
       budget: "Planned budget", spent_usd: "Spend USD", project: "Project", progress_pct: "Progress %",
       expenses_usd: "Costs USD", receipts: "Sales", gross_sales_usd: "Gross sales USD", returned_sales_usd: "Returns USD", net_sales_usd: "Net sales USD",
+      metric: "Metric", subject: "Item", balance: "Balance", target_amount: "Target", planned_amount: "Planned",
+      actual_amount: "Actual", net_margin_pct: "Net margin %", missing_rate_count: "Missing rate",
     },
     errors: { catalog: "Unable to load the report catalog.", report: "Unable to load this report.", export: "Unable to create the Excel file." },
   },
@@ -134,6 +174,11 @@ const reportColumns: Record<ReportCategory, string[]> = {
   operations: ["project", "entity", "department", "status", "progress_pct", "budget", "currency", "expenses_usd"],
   store: ["period", "receipts", "gross_sales_usd", "returned_sales_usd", "net_sales_usd"],
 };
+
+const financialSummaryColumns = [
+  "entity", "metric", "subject", "currency", "balance", "target_amount", "planned_amount",
+  "actual_amount", "income_usd", "expense_usd", "net_usd", "net_margin_pct", "missing_rate_count",
+];
 
 function localDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -252,12 +297,7 @@ export function ReportsManager({ locale }: { locale: Locale }) {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ category: selectedCategory, from: start, to: end });
-      if (selectedEntity) params.set("entityId", selectedEntity);
-      const response = await fetch(`/api/v1/reports?${params}`, { cache: "no-store" });
-      const body = await response.json() as ReportData & { error?: string };
-      if (!response.ok) throw new Error(body.error || copy.errors.report);
-      setReport(body);
+      setReport(await fetchReportData(selectedCategory, start, end, selectedEntity, copy.errors.report));
     } catch (cause) {
       setReport(null);
       setError(cause instanceof Error ? cause.message : copy.errors.report);
@@ -267,20 +307,41 @@ export function ReportsManager({ locale }: { locale: Locale }) {
   }
 
   async function exportExcel() {
-    if (!report || !category || report.truncated) return;
+    if (!report || !category) return;
     setExporting(true);
     setError("");
     try {
+      const currentReport = await fetchReportData(category, from, to, entityId, copy.errors.report);
+      setReport(currentReport);
+      if (currentReport.truncated) {
+        setError(copy.truncated);
+        return;
+      }
+      const summaryRows = (currentReport.financialSummary ?? []).map((row) => {
+        const metric = row.metric ?? "";
+        const metricLabel = Object.hasOwn(copy.financialMetrics, metric)
+          ? copy.financialMetrics[metric as keyof typeof copy.financialMetrics]
+          : metric;
+        return { ...row, metric: metricLabel, subject: row.subject || metricLabel };
+      });
       const output = buildXlsx(
         columns.map((key) => ({ key, header: copy.columns[key as keyof typeof copy.columns] })),
-        report.rows,
+        currentReport.rows,
         copy[category],
         {
           organization: copy.organization,
           title: copy[category],
-          period: `${copy.from}: ${formatDate(report.from)} – ${copy.to}: ${formatDate(report.to)} · ${copy.entity}: ${selectedCatalog?.entities.find((entity) => entity.id === entityId)?.name ?? copy.allEntities}`,
-          generatedAt: `${copy.generated}: ${formatDate(report.generatedAt, true)}`,
+          period: `${copy.from}: ${formatDate(currentReport.from)} – ${copy.to}: ${formatDate(currentReport.to)} · ${copy.entity}: ${selectedCatalog?.entities.find((entity) => entity.id === entityId)?.name ?? copy.allEntities}`,
+          generatedAt: `${copy.generated}: ${formatDate(currentReport.generatedAt, true)}`,
         },
+        summaryRows.length ? [{
+          columns: financialSummaryColumns.map((key) => ({
+            key,
+            header: copy.columns[key as keyof typeof copy.columns],
+          })),
+          rows: summaryRows,
+          sheetName: copy.financialSummaryTitle,
+        }] : [],
       );
       const blob = new Blob([new Uint8Array(output)], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -288,9 +349,15 @@ export function ReportsManager({ locale }: { locale: Locale }) {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `mojo-${category}-${report.from}-${report.to}.xlsx`;
-      anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      anchor.download = `mojo-${category}-${currentReport.from}-${currentReport.to}.xlsx`;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      try {
+        anchor.click();
+      } finally {
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
     } catch (cause) {
       console.error("Unable to export report to Excel.", cause);
       setError(cause instanceof Error ? cause.message : copy.errors.export);
@@ -346,6 +413,33 @@ export function ReportsManager({ locale }: { locale: Locale }) {
   const currencyFormat = new Intl.NumberFormat(locale === "ht" ? "ht-HT" : locale === "en" ? "en-US" : "fr-FR", {
     style: "currency", currency: "USD", maximumFractionDigits: 2,
   });
+  const formatSummaryValue = (row: ReportRow, key: string) => {
+    const value = row[key];
+    if (value === null || value === undefined) return "—";
+    if (["balance", "target_amount", "planned_amount", "actual_amount"].includes(key)) {
+      return new Intl.NumberFormat(dateLocale, {
+        style: "currency",
+        currency: row.currency?.trim() || "USD",
+        maximumFractionDigits: 2,
+      }).format(Number(value));
+    }
+    if (["income_usd", "expense_usd", "net_usd"].includes(key)) {
+      return currencyFormat.format(Number(value));
+    }
+    if (key === "net_margin_pct") return `${numberFormat.format(Number(value))}%`;
+    if (key === "missing_rate_count") return numberFormat.format(Number(value));
+    if (key === "metric" && row.metric) {
+      return Object.hasOwn(copy.financialMetrics, row.metric)
+        ? copy.financialMetrics[row.metric as keyof typeof copy.financialMetrics]
+        : row.metric;
+    }
+    if (key === "subject" && !value) {
+      return row.metric && Object.hasOwn(copy.financialMetrics, row.metric)
+        ? copy.financialMetrics[row.metric as keyof typeof copy.financialMetrics]
+        : "—";
+    }
+    return value;
+  };
   const maximumTrendValue = Math.max(1, ...monthTrend.flatMap(([, values]) => [values.income, values.expense]));
 
   return (
@@ -405,11 +499,36 @@ export function ReportsManager({ locale }: { locale: Locale }) {
             </div>
             <div className="reports-actions">
               <button className="button button-secondary" type="button" onClick={() => window.print()} disabled={!report || loading}>{copy.pdf}</button>
-              <button className="button button-secondary" type="button" onClick={() => void exportExcel()} disabled={!report || loading || exporting || report?.truncated}>
+              <button className="button button-secondary" type="button" onClick={() => void exportExcel()} disabled={!report || loading || exporting}>
                 {exporting ? copy.loading : copy.excel}
               </button>
             </div>
           </div>
+
+          {report && category === "finance" && report.financialSummary?.length ? (
+            <section className="reports-financial-summary" aria-label={copy.financialSummaryTitle}>
+              <header>
+                <h3>{copy.financialSummaryTitle}</h3>
+                <p>{copy.financialSummaryNote}</p>
+              </header>
+              <div className="reports-table-scroll">
+                <table className="reports-table">
+                  <thead><tr>{financialSummaryColumns.map((key) => <th key={key}>{copy.columns[key as keyof typeof copy.columns]}</th>)}</tr></thead>
+                  <tbody>
+                    {report.financialSummary.map((row, index) => (
+                      <tr key={`${index}-${row.entity}-${row.metric}-${row.subject}-${row.currency}`}>
+                        {financialSummaryColumns.map((key) => (
+                          <td key={key} className={key === "balance" || key === "target_amount" || key === "planned_amount" || key === "actual_amount" || key.endsWith("_usd") || key === "net_margin_pct" ? "reports-numeric" : undefined}>
+                            {formatSummaryValue(row, key)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
 
           {report && category === "finance" && monthTrend.length > 0 && (
             <section className="reports-trend" aria-label={copy.descriptions.finance}>

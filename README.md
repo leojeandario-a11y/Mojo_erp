@@ -154,6 +154,8 @@ docker compose --profile encrypted-backup run --rm --entrypoint node backup `
   /app/scripts/restore-encrypted.mjs --restore /offsite/<nom-de-l-archive>.dump.enc
 ```
 
+Le service Compose transmet cette variable au conteneur de restauration. Vous pouvez aussi la définir dans `.env`; le nom doit désigner une base neuve réservée au test.
+
 Le script refuse la base source, conserve la base d’essai pour vérification manuelle et ne la supprime pas. La restauration réelle, la durée de reprise, le stockage hors hôte et la construction du conteneur ne sont pas encore validés. Ne déployez pas sur la foi de ces scripts seuls.
 
 ## Développement local

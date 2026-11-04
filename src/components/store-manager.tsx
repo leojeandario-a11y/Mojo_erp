@@ -131,7 +131,10 @@ const translations = {
     noSales: "Aucune vente sur cette période.", saleHistory: "Historique des ventes",
     returnSale: "Retour complet", voidSale: "Annuler la vente", confirmReturn: "Confirmer le retour complet",
     confirmVoid: "Confirmer l’annulation", returnReason: "Motif du retour / de l’annulation",
-    refundAccount: "Compte de remboursement", fullReturnNote: "Le retour complet remet tous les articles en stock et crée l’écriture de remboursement.",
+    refundAccount: "Compte de remboursement", receiptNumber: "Numéro du reçu d’origine",
+    unusedConfirmation: "Je confirme que les articles retournés sont inutilisés.",
+    returnPolicyNote: "Retour sous 7 jours calendaires (jour d’achat inclus), sur présentation du reçu. Articles inutilisés uniquement; remboursement au mode de paiement initial.",
+    fullReturnNote: "L’annulation complète remet tous les articles en stock et crée l’écriture compensatoire.",
     createExhibitor: "Ajouter un exposant", exhibitorName: "Nom de l’exposant", contactName: "Personne à contacter",
     email: "Courriel", phone: "Téléphone", space: "Espace / emplacement", rent: "Loyer",
     rentPeriod: "Périodicité du loyer", weekly: "Hebdomadaire", monthly: "Mensuel", oneTime: "Unique",
@@ -185,7 +188,10 @@ const translations = {
     noSales: "Pa gen vant nan peryòd sa a.", saleHistory: "Istwa vant",
     returnSale: "Retounen tout", voidSale: "Anile vant lan", confirmReturn: "Konfime retou konplè a",
     confirmVoid: "Konfime anilasyon an", returnReason: "Rezon retou / anilasyon an",
-    refundAccount: "Kont ranbousman", fullReturnNote: "Retou konplè a mete tout atik yo tounen nan estòk epi kreye ekriti ranbousman an.",
+    refundAccount: "Kont ranbousman", receiptNumber: "Nimewo resi orijinal la",
+    unusedConfirmation: "Mwen konfime atik yo pa t itilize.",
+    returnPolicyNote: "Retou nan 7 jou kalandriye (jou acha a konte), avèk resi a. Se sèlman atik ki pa itilize; ranbousman an fèt nan mòd peman orijinal la.",
+    fullReturnNote: "Anilasyon an remete tout atik yo nan estòk epi kreye ekriti konpansasyon an.",
     createExhibitor: "Ajoute ekspozan", exhibitorName: "Non ekspozan an", contactName: "Moun pou kontakte",
     email: "Imèl", phone: "Telefòn", space: "Espas / kote", rent: "Lwaye",
     rentPeriod: "Peryòd lwaye a", weekly: "Chak semèn", monthly: "Chak mwa", oneTime: "Yon sèl fwa",
@@ -239,7 +245,10 @@ const translations = {
     noSales: "No sales in this period.", saleHistory: "Sales history",
     returnSale: "Full return", voidSale: "Void sale", confirmReturn: "Confirm full return",
     confirmVoid: "Confirm void", returnReason: "Return / void reason",
-    refundAccount: "Refund account", fullReturnNote: "A full return restocks every item and creates the refund transaction.",
+    refundAccount: "Refund account", receiptNumber: "Original receipt number",
+    unusedConfirmation: "I confirm the returned items are unused.",
+    returnPolicyNote: "Return within 7 calendar days (purchase day counts), with the receipt. Unused items only; refund to the original payment method.",
+    fullReturnNote: "A full void restocks every item and creates the compensating transaction.",
     createExhibitor: "Add exhibitor", exhibitorName: "Exhibitor name", contactName: "Contact name",
     email: "Email", phone: "Phone", space: "Space / location", rent: "Rent",
     rentPeriod: "Rent period", weekly: "Weekly", monthly: "Monthly", oneTime: "One time",
@@ -668,8 +677,20 @@ export function StoreManager({ locale, user }: { locale: Locale; user: { id: str
     event.preventDefault();
     if (!returnTarget) return;
     const values = new FormData(event.currentTarget);
+    const payload = returnTarget.action === "return"
+      ? {
+          action: returnTarget.action,
+          receiptNumber: values.get("receiptNumber"),
+          conditionConfirmed: values.get("conditionConfirmed") === "on",
+          reason: values.get("reason"),
+        }
+      : {
+          action: returnTarget.action,
+          accountId: values.get("accountId"),
+          reason: values.get("reason"),
+        };
     const success = await mutate(`/api/v1/store/sales/${returnTarget.sale.id}/return`, "POST", {
-      action: returnTarget.action, accountId: values.get("accountId"), reason: values.get("reason"),
+      ...payload,
     });
     if (success) setReturnTarget(null);
   }
@@ -977,14 +998,19 @@ export function StoreManager({ locale, user }: { locale: Locale; user: { id: str
 
     {returnTarget && <div className="store-dialog-backdrop" role="presentation" onClick={() => setReturnTarget(null)}>
       <form className="operations-panel store-return-dialog" onSubmit={submitReturn} onClick={(event) => event.stopPropagation()}>
-        <h3>{text(returnTarget.action === "return" ? "confirmReturn" : "confirmVoid")}</h3><p>{text("fullReturnNote")}</p>
-        <label>{text("refundAccount")}<select name="accountId" required>{data.accounts.filter(({ currency }) => currency === returnTarget.sale.currency).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>
+        <h3>{text(returnTarget.action === "return" ? "confirmReturn" : "confirmVoid")}</h3>
+        <p>{text(returnTarget.action === "return" ? "returnPolicyNote" : "fullReturnNote")}</p>
+        {returnTarget.action === "return" ? <>
+          <label>{text("receiptNumber")}<input name="receiptNumber" autoComplete="off" required maxLength={120} /></label>
+          <label className="store-return-confirmation"><input name="conditionConfirmed" type="checkbox" required />{text("unusedConfirmation")}</label>
+        </> : <label>{text("refundAccount")}<select name="accountId" required>{data.accounts.filter(({ currency }) => currency === returnTarget.sale.currency).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label>}
         <label>{text("returnReason")}<textarea name="reason" required minLength={3} maxLength={500} rows={3} /></label>
         <div className="store-form-actions"><button className="operations-button" disabled={busy}>{text(returnTarget.action === "return" ? "confirmReturn" : "confirmVoid")}</button><button className="button button-secondary" type="button" onClick={() => setReturnTarget(null)}>{text("cancel")}</button></div>
       </form>
     </div>}
     {receipt && <div className="store-dialog-backdrop store-receipt-backdrop"><section className="operations-panel store-receipt">
-      <span className="eyebrow">MOJO STORE</span><h2>{text("receipt")}</h2><p>{receipt.sale.receiptNumber}</p>
+      <span className="eyebrow">MoJo PIKtures</span><p>#19 rue magonès, Pétion-Ville · 34 17 1586</p>
+      <h2>{text("receipt")}</h2><p>{receipt.sale.receiptNumber}</p>
       <p>{new Date(receipt.sale.soldAt).toLocaleString(locale)} · {text("cashier")}: {user.fullName}</p>
       <div>{receipt.items.map((item, index) => <div key={`${item.sku}-${index}`}><span>{item.name} · {item.quantity} × {item.unitPrice}</span><strong>{item.lineTotal} {receipt.sale.currency}</strong></div>)}</div>
       <p>{text("subtotal")}: {receipt.sale.subtotal} {receipt.sale.currency}</p><p>{text("discount")}: {receipt.sale.discount} {receipt.sale.currency}</p>
