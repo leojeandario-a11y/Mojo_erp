@@ -361,7 +361,7 @@ export function HrManager({ canManage, canManageAttendance }: { canManage: boole
             <button className="button" type="submit">Approuver l'ajustement</button>
           </form>
         </div>}
-        {canManage && <form className="hr-panel hr-inline-form" onSubmit={submitRun}>
+        {canManage && <form className="hr-panel hr-inline-form hr-pay-cycle-form" onSubmit={submitRun}>
           <h3>Créer un cycle de paie</h3>
           <label>Libellé<input name="periodLabel" placeholder="Novembre 2026" required /></label>
           <label>Du<input name="periodStart" type="date" required /></label>

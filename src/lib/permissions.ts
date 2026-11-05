@@ -2,6 +2,10 @@ export function hasPermission(user: { permissions: readonly string[] }, permissi
   return user.permissions.includes("*") || user.permissions.includes(permission);
 }
 
+export function isSuperAdmin(user: { roles: readonly string[] }): boolean {
+  return user.roles.includes("super_admin");
+}
+
 export function hasEntityPermission(
   user: { permissions: readonly string[]; entityPermissions: Readonly<Record<string, readonly string[]>> },
   permission: string,

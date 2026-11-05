@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { getSession, hasPermission } from "@/lib/auth";
 import { requestIp, withDbUser } from "@/lib/db";
 import { hasAnyPermission } from "@/lib/permissions";
-
-const exchangeRateSchema = z.object({
-  rateDate: z.iso.date(),
-  fromCurrency: z.enum(["HTG", "USD"]),
-  toCurrency: z.enum(["HTG", "USD"]),
-  rate: z.string().regex(/^\d{1,10}(?:\.\d{1,8})?$/).refine((value) => Number(value) > 0),
-}).strict().refine((data) => data.fromCurrency !== data.toCurrency);
+import { exchangeRateSchema } from "@/lib/exchange-rate-schema";
 
 export async function GET(request: Request) {
   const actor = await getSession(request.headers);
@@ -45,12 +38,12 @@ export async function POST(request: Request) {
 
   try {
     const result = await withDbUser(actor.id, requestIp(request.headers), async (client) =>
-      client.query<{ id: string; updated: boolean }>(
+      client.query<{ id: string }>(
         `INSERT INTO exchange_rates(rate_date, from_currency, to_currency, rate, entered_by)
          VALUES ($1, $2, $3, $4::numeric, $5)
          ON CONFLICT (rate_date, from_currency, to_currency)
-         DO UPDATE SET rate = EXCLUDED.rate, entered_by = EXCLUDED.entered_by
-         RETURNING id, (xmax <> 0) AS updated`,
+         DO NOTHING
+         RETURNING id`,
         [
           parsed.data.rateDate,
           parsed.data.fromCurrency,
@@ -60,7 +53,10 @@ export async function POST(request: Request) {
         ],
       ),
     );
-    return NextResponse.json({ id: result.rows[0].id, updated: result.rows[0].updated }, { status: 200 });
+    if (!result.rows[0]) {
+      return NextResponse.json({ error: "A rate already exists for this date and currency pair. Select it from the history to edit it." }, { status: 409 });
+    }
+    return NextResponse.json({ id: result.rows[0].id, updated: false }, { status: 201 });
   } catch (error) {
     console.error("Unable to save exchange rate.", error);
     return NextResponse.json({ error: "Unable to save exchange rate." }, { status: 500 });

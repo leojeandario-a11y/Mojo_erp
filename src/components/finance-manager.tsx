@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Locale } from "@/lib/auth";
 import { translate } from "@/lib/i18n";
 import { formatExchangeRate, formatMoney } from "@/lib/money.mjs";
+import { RecordDetailsDialog, SuperAdminRecordActions, type RecordDetail } from "@/components/super-admin-record-actions";
 
 interface FinanceEntity {
   id: string;
@@ -44,10 +45,12 @@ export function FinanceManager({
   locale,
   canReadAccounts,
   canManageRates,
+  isSuperAdmin,
 }: {
   locale: Locale;
   canReadAccounts: boolean;
   canManageRates: boolean;
+  isSuperAdmin: boolean;
 }) {
   const text = useCallback((key: Parameters<typeof translate>[1]) => translate(locale, key), [locale]);
   const [accounts, setAccounts] = useState<FinanceAccount[]>([]);
@@ -61,6 +64,8 @@ export function FinanceManager({
   const [accountNotice, setAccountNotice] = useState("");
   const [rateNotice, setRateNotice] = useState("");
   const [newEntityId, setNewEntityId] = useState("");
+  const [selectedRate, setSelectedRate] = useState<ExchangeRate | null>(null);
+  const [rateDetail, setRateDetail] = useState<RecordDetail | null>(null);
   const selected = accounts.find((account) => account.id === selectedId);
 
   const loadAccounts = useCallback(async () => {
@@ -143,8 +148,9 @@ export function FinanceManager({
     setRateError("");
     setRateNotice("");
     try {
-      const response = await fetch("/api/v1/exchange-rates", {
-        method: "POST",
+      const endpoint = selectedRate ? `/api/v1/exchange-rates/${selectedRate.id}` : "/api/v1/exchange-rates";
+      const response = await fetch(endpoint, {
+        method: selectedRate ? "PUT" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           rateDate: form.get("rateDate"),
@@ -157,13 +163,32 @@ export function FinanceManager({
         setRateError(await getApiError(response, text("requestFailed")));
         return;
       }
-      const result = await response.json() as { updated: boolean };
-      setRateNotice(text(result.updated ? "exchangeRateUpdated" : "exchangeRateSaved"));
+      setRateNotice(text(selectedRate ? "exchangeRateUpdated" : "exchangeRateSaved"));
+      setSelectedRate(null);
       await loadRates();
     } catch (cause) {
       setRateError(cause instanceof Error ? cause.message : text("requestFailed"));
     }
   }
+
+  async function deleteRate(rate: ExchangeRate) {
+    if (!window.confirm(text("confirmDeleteRecord"))) return;
+    setRateError("");
+    setRateNotice("");
+    try {
+      const response = await fetch(`/api/v1/exchange-rates/${rate.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        setRateError(await getApiError(response, text("requestFailed")));
+        return;
+      }
+      setRateNotice(text("deleteRecord"));
+      await loadRates();
+    } catch (cause) {
+      setRateError(cause instanceof Error ? cause.message : text("requestFailed"));
+    }
+  }
+
+  const rateActionLabels = { open: text("openRecord"), edit: text("editRecord"), delete: text("deleteRecord") };
 
   return (
     <section className="finance-shell">
@@ -255,30 +280,37 @@ export function FinanceManager({
             <div><span className="eyebrow">{text("finance").toUpperCase()}</span><h2>{text("exchangeRates")}</h2></div>
             <span className="count-pill">{rates.length}</span>
           </div>
-          <form className="finance-rate-form" onSubmit={saveRate}>
+          <form key={selectedRate?.id ?? "new-rate"} className="finance-rate-form" onSubmit={saveRate}>
             <fieldset className="finance-form-section">
-              <legend>{text("exchangeRateDetails")}</legend>
+              <legend>{text(selectedRate ? "editRecord" : "exchangeRateDetails")}</legend>
               <div className="finance-form-grid finance-rate-fields">
-                <label>{text("rateDate")}<input name="rateDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
-                <label>{text("fromCurrency")}<select name="fromCurrency" defaultValue="USD"><option value="USD">USD</option><option value="HTG">HTG</option></select></label>
-                <label>{text("toCurrency")}<select name="toCurrency" defaultValue="HTG"><option value="HTG">HTG</option><option value="USD">USD</option></select></label>
-                <label>{text("rate")}<input name="rate" type="number" min="0.00000001" step="0.00000001" required /></label>
+                <label>{text("rateDate")}<input name="rateDate" type="date" required defaultValue={selectedRate?.rate_date??new Date().toISOString().slice(0, 10)} /></label>
+                <label>{text("fromCurrency")}<select name="fromCurrency" defaultValue={selectedRate?.from_currency??"USD"}><option value="USD">USD</option><option value="HTG">HTG</option></select></label>
+                <label>{text("toCurrency")}<select name="toCurrency" defaultValue={selectedRate?.to_currency??"HTG"}><option value="HTG">HTG</option><option value="USD">USD</option></select></label>
+                <label>{text("rate")}<input name="rate" type="number" min="0.00000001" step="0.00000001" required defaultValue={selectedRate?.rate??""} /></label>
               </div>
             </fieldset>
             {rateError && <p className="form-error" role="alert">{rateError}</p>}
             {rateNotice && <p className="success-message" role="status">{rateNotice}</p>}
             <div className="finance-form-actions">
-              <button className="button button-primary" type="submit">{text("saveExchangeRate")}</button>
+              {selectedRate && <button className="button button-secondary" type="button" onClick={() => setSelectedRate(null)}>{text("cancel")}</button>}
+              <button className="button button-primary" type="submit">{text(selectedRate ? "saveChanges" : "saveExchangeRate")}</button>
             </div>
           </form>
           <div className="finance-rate-list">
             <div className="panel-heading"><div><span className="eyebrow">{text("history").toUpperCase()}</span></div></div>
             {ratesLoading ? <p className="muted">{text("loading")}</p> : rateError ? null : rates.length ? (
               <div className="table-scroll"><table>
-                <thead><tr><th>{text("rateDate")}</th><th>{text("fromCurrency")} / {text("toCurrency")}</th><th>{text("rate")}</th></tr></thead>
+                <thead><tr><th>{text("rateDate")}</th><th>{text("fromCurrency")} / {text("toCurrency")}</th><th>{text("rate")}</th>{isSuperAdmin&&<th>{text("administration")}</th>}</tr></thead>
                 <tbody>{rates.map((rate) => <tr key={rate.id}>
                   <td>{rate.rate_date}</td><td>{rate.from_currency} / {rate.to_currency}</td>
                   <td>{formatExchangeRate(rate.rate, locale)}</td>
+                  {isSuperAdmin&&<td><SuperAdminRecordActions isSuperAdmin labels={rateActionLabels}
+                    onOpen={()=>setRateDetail({title:`${rate.rate_date} · ${rate.from_currency}/${rate.to_currency}`,fields:[{label:text("rateDate"),value:rate.rate_date},{label:text("fromCurrency"),value:rate.from_currency},{label:text("toCurrency"),value:rate.to_currency},{label:text("rate"),value:formatExchangeRate(rate.rate,locale)}]})}
+                    onEdit={()=>setSelectedRate(rate)}
+                    onDelete={()=>void deleteRate(rate)}
+                    deleteDisabled
+                    deleteTitle={text("exchangeRatesCannotDelete")}/></td>}
                 </tr>)}</tbody>
               </table></div>
             ) : <p className="empty-state">{text("noExchangeRates")}</p>}
@@ -286,6 +318,7 @@ export function FinanceManager({
         </section>
       ) : null}
       </div>
+      <RecordDetailsDialog detail={rateDetail} closeLabel={text("closeRecord")} onClose={()=>setRateDetail(null)}/>
     </section>
   );
 }

@@ -46,7 +46,7 @@ export default async function FinancePage() {
           <p>{translate(user.locale, "financeManagementDescription")}</p>
         </div>
       </header>
-      <FinanceManager locale={user.locale} canReadAccounts={canReadAccounts} canManageRates={canManageRates} />
+      <FinanceManager locale={user.locale} canReadAccounts={canReadAccounts} canManageRates={canManageRates} isSuperAdmin={user.roles.includes("super_admin")} />
       {canAccessEmergencyFund && <EmergencyFundManager locale={user.locale} />}
       <FinanceBudgetsManager locale={user.locale} canRead={canReadBudgets} canManage={canManageBudgets} />
       <FinanceCategoriesManager locale={user.locale} canManage={canManageAccounts} />

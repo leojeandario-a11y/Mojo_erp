@@ -42,10 +42,10 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
   if (!requiredPermissions[module as (typeof modules)[number]].some((permission) => hasAnyPermission(user, [permission]))) redirect("/forbidden");
   if (module === "approvals") return <ApprovalsManager locale={user.locale} />;
   if (module === "business") return <BusinessManager />;
-  if (module === "finance") return <FinanceManager locale={user.locale} canReadAccounts={hasAnyPermission(user, ["finance.account.manage", "*"])} canManageRates={hasAnyPermission(user, ["finance.rate.manage", "*"])} />;
+  if (module === "finance") return <FinanceManager locale={user.locale} canReadAccounts={hasAnyPermission(user, ["finance.account.manage", "*"])} canManageRates={hasAnyPermission(user, ["finance.rate.manage", "*"])} isSuperAdmin={user.roles.includes("super_admin")} />;
   if (module === "hr") return <HrManager canManage={hasAnyPermission(user, ["hr.employee.manage", "*"])} canManageAttendance={hasAnyPermission(user, ["hr.attendance.manage", "*"])} />;
-  if (module === "marketing") return <MarketingManager permissions={user.permissions} />;
-  if (module === "operations") return <OperationsManager permissions={user.permissions} />;
+  if (module === "marketing") return <MarketingManager permissions={user.permissions} isSuperAdmin={user.roles.includes("super_admin")} actionLabels={{ open: translate(user.locale, "openRecord"), edit: translate(user.locale, "editRecord"), delete: translate(user.locale, "deleteRecord") }} />;
+  if (module === "operations") return <OperationsManager permissions={user.permissions} isSuperAdmin={user.roles.includes("super_admin")} actionLabels={{ open: translate(user.locale, "openRecord"), edit: translate(user.locale, "editRecord"), delete: translate(user.locale, "deleteRecord") }} />;
   if (module === "store") return <StoreManager locale={user.locale} user={{ id: user.id, fullName: user.fullName, permissions: user.permissions, entityPermissions: user.entityPermissions }} />;
   if (module === "reports") return <ReportsManager locale={user.locale} />;
   return <div className="module-placeholder"><span className="module-placeholder-icon">✳</span><span className="eyebrow">MOJOPIKTURES · ROADMAP</span><h1>{translate(user.locale, module as (typeof modules)[number])}</h1><p>{translate(user.locale, "comingSoon")}</p><span className="phase-tag">PHASE EN PRÉPARATION</span></div>;

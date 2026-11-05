@@ -298,7 +298,7 @@ export default async function DashboardPage({
       </section>
       {globalDashboard && <section className="panel dashboard-project-progress" aria-labelledby="dashboard-project-progress-title">
         <div className="panel-heading">
-          <div><span className="eyebrow">PHASE 01 · {text("foundation").toUpperCase()}</span><h2 id="dashboard-project-progress-title">{text("currentProjectStage")}</h2></div>
+          <div><span className="eyebrow">{text("currentProjectPhase").toUpperCase()}</span><h2 id="dashboard-project-progress-title">{text("currentProjectStage")}</h2></div>
           <span className="count-pill">{text("inProgress")}</span>
         </div>
         <p>{text("quickStartText")}</p>

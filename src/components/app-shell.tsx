@@ -33,6 +33,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
   const [modulesExpanded, setModulesExpanded] = useState(true);
   const [adminExpanded, setAdminExpanded] = useState(true);
   const [latestRate, setLatestRate] = useState<string | null | undefined>(undefined);
+  const [latestRateDate, setLatestRateDate] = useState<string | null>(null);
   const [rateUnavailable, setRateUnavailable] = useState(false);
   const text = messages[user.locale];
   const visibleModules = modules.filter((item) => item.permission.length === 0 || hasAnyPermission(user, item.permission));
@@ -60,10 +61,13 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
     fetch("/api/v1/exchange-rates/latest")
       .then(async (response) => {
         if (!response.ok) throw new Error("Unable to load the latest exchange rate.");
-        return response.json() as Promise<{ rate: string | null }>;
+        return response.json() as Promise<{ rate: string | null; rateDate: string | null }>;
       })
       .then((data) => {
-        if (!cancelled) setLatestRate(data.rate);
+        if (!cancelled) {
+          setLatestRate(data.rate);
+          setLatestRateDate(data.rateDate);
+        }
       })
       .catch((error: unknown) => {
         console.error("Unable to load the latest exchange rate.", error);
@@ -73,6 +77,12 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
       cancelled = true;
     };
   }, []);
+  const rateDateLabel = latestRateDate
+    ? new Intl.DateTimeFormat(user.locale === "ht" ? "ht-HT" : user.locale === "en" ? "en-US" : "fr-FR", {
+      dateStyle: "short",
+      timeZone: "UTC",
+    }).format(new Date(`${latestRateDate}T00:00:00Z`))
+    : null;
 
   async function updatePreference(field: "locale" | "displayCurrency", value: Locale | DisplayCurrency) {
     setSaving(true);
@@ -194,7 +204,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
           </div>
           <div className={`exchange-rate-status ${rateUnavailable ? "rate-unavailable" : ""}`} role="status">
             {rateUnavailable ? text.rateUnavailable : latestRate === null ? text.noExchangeRate
-              : latestRate ? `${text.exchangeRate}: 1 USD = ${formatExchangeRate(latestRate, user.locale)} HTG` : ""}
+              : latestRate ? `${text.exchangeRate}: 1 USD = ${formatExchangeRate(latestRate, user.locale)} HTG${rateDateLabel ? ` · ${rateDateLabel}` : ""}` : ""}
           </div>
         </header>
         <div className="page-content">{actionError && <p className="form-error" role="alert">{actionError}</p>}{children}</div>

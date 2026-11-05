@@ -12,7 +12,7 @@ export async function GET(request: Request) {
         `SELECT rate::text, rate_date::text
          FROM exchange_rates
          WHERE from_currency = 'USD' AND to_currency = 'HTG'
-           AND rate_date = CURRENT_DATE
+           AND rate_date <= CURRENT_DATE
          ORDER BY rate_date DESC, created_at DESC
          LIMIT 1`,
       );
