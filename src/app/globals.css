@@ -1105,6 +1105,11 @@ td strong { color: #344a42; font-size: 10px; font-weight: 600; }
 .store-summary-list div { display:grid; gap:7px; padding:14px; border:1px solid #e8ede9; border-radius:12px; background:#f9fbf9; }
 .store-summary-list span,.store-muted,.store-product-main small,.store-product-main span,.store-low-stock small,.store-sale-heading small,.store-category-list,.store-product-form label,.store-cash-session label,.store-settlement-form label { color:var(--muted); font-size:11px; }
 .store-summary-list strong { color:var(--ink-strong); font-size:19px; }
+.store-discount-limits { display:grid; gap:8px; }
+.store-discount-limits form { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:10px; padding:10px 0; border-top:1px solid #edf0ed; }
+.store-discount-limits label { display:grid; min-width:0; gap:6px; color:var(--muted); font-size:11px; font-weight:700; }
+.store-discount-limits input { width:100%; min-width:0; min-height:38px; box-sizing:border-box; padding:8px 10px; border:1px solid #dae2dd; border-radius:8px; background:#fff; color:var(--ink); font:inherit; }
+.store-discount-limits .button { min-height:38px; white-space:nowrap; }
 .store-warning-text,.store-low-badge { color:#a45512!important; }
 .store-low-stock { display:grid; gap:10px; margin:0; padding:0; list-style:none; }
 .store-low-stock li { display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-bottom:1px solid #edf0ed; }
@@ -1216,9 +1221,31 @@ td strong { color: #344a42; font-size: 10px; font-weight: 600; }
 .store-receipt>div:not(.store-form-actions)>div { display:flex; justify-content:space-between; gap:10px; font-size:10px; }
 .store-receipt p { color:var(--muted); font-size:11px; }
 .store-receipt .store-form-actions { margin-top:15px; }
-@media(max-width:900px){.store-pos-layout{grid-template-columns:1fr}.store-product-grid{grid-template-columns:1fr}.store-product-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){.store-overview-grid,.store-catalog-tools,.store-stock-tools,.store-exhibitor-layout{grid-template-columns:1fr}.store-statements-panel,.store-product-list{grid-column:auto}.store-statement-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.store-settlement-form{grid-template-columns:repeat(2,minmax(0,1fr))}.store-pos-products{max-height:50vh}}
-@media(max-width:480px){.store-product-filters{flex-direction:column}.store-product-form,.store-checkout-fields{grid-template-columns:1fr}.store-product-card{flex-wrap:wrap}.store-product-main{flex-basis:calc(100% - 65px)}.store-product-price{margin-left:58px}.store-pos-products{grid-template-columns:1fr 1fr}.store-sale-footer{align-items:flex-start; flex-direction:column}.store-statement-metrics,.store-settlement-form{grid-template-columns:1fr}.store-dialog-backdrop{padding:10px}}
+@media (max-width: 900px) {
+  .store-pos-layout { grid-template-columns: 1fr; }
+  .store-product-grid { grid-template-columns: 1fr; }
+  .store-product-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .store-overview-grid,.store-catalog-tools,.store-stock-tools,.store-exhibitor-layout { grid-template-columns: 1fr; }
+  .store-statements-panel,.store-product-list { grid-column: auto; }
+  .store-statement-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .store-settlement-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .store-pos-products { max-height: 50vh; }
+}
+@media (max-width: 480px) {
+  .store-product-filters { flex-direction: column; }
+  .store-product-form,.store-checkout-fields { grid-template-columns: 1fr; }
+  .store-discount-limits form { grid-template-columns: 1fr; }
+  .store-discount-limits .button { width: 100%; }
+  .store-product-card { flex-wrap: wrap; }
+  .store-product-main { flex-basis: calc(100% - 65px); }
+  .store-product-price { margin-left: 58px; }
+  .store-pos-products { grid-template-columns: 1fr 1fr; }
+  .store-sale-footer { align-items: flex-start; flex-direction: column; }
+  .store-statement-metrics,.store-settlement-form { grid-template-columns: 1fr; }
+  .store-dialog-backdrop { padding: 10px; }
+}
 @media print {
   body * { visibility:hidden!important; }
   .store-receipt-backdrop,.store-receipt-backdrop * { visibility:visible!important; }

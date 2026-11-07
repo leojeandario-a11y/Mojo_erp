@@ -179,6 +179,7 @@ npm run build
 
 ## Sécurité et production
 
+- Le build prépare le dossier autonome Next.js avec les fichiers `public` et les ressources `.next/static`. Pour le lancer, exécutez `npm run start`; définissez `PORT` et `HOSTNAME` dans l’environnement selon la plateforme de déploiement.
 - Ne versionnez jamais `.env`; remplacez les mots de passe d’exemple par des secrets uniques.
 - En production, activez HTTPS. Le cookie de session devient alors `Secure`.
 - Les sessions et changements d’accès sont enregistrés en base; l’application configure `app.user_id` dans chaque transaction utilisateur pour la RLS et l’audit.
