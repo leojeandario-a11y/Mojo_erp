@@ -101,14 +101,15 @@ export function HrManager({ canManage, canManageAttendance }: { canManage: boole
 
   async function submitEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     try {
       await api("/api/v1/hr/employees", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
         employeeCode: form.get("employeeCode"), firstName: form.get("firstName"), lastName: form.get("lastName"),
         jobTitle: form.get("jobTitle") || null, hireDate: form.get("hireDate"), status: form.get("status"),
         contractType: form.get("contractType"), nationalIdMasked: form.get("nationalIdMasked") || null,
       }) });
-      event.currentTarget.reset();
+      formElement.reset();
       setNotice("Fiche employé enregistrée.");
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Création impossible."); }
@@ -216,14 +217,15 @@ export function HrManager({ canManage, canManageAttendance }: { canManage: boole
 
   async function submitOperation(event: FormEvent<HTMLFormElement>, type: string) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const body: Record<string, unknown> = { type };
     form.forEach((value, key) => { body[key] = value || null; });
     try {
       await api("/api/v1/hr/operations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       setNotice("Opération RH enregistrée.");
       setOperations(await api<HrOperations>("/api/v1/hr/operations"));
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Enregistrement RH impossible."); }
   }
 

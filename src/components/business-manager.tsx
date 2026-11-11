@@ -47,12 +47,13 @@ export function BusinessManager() {
 
   async function submit(event:FormEvent<HTMLFormElement>, endpoint:string, extra:Record<string,unknown> = {}) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const body:Record<string,unknown> = {...extra};
     form.forEach((value,key) => { body[key] = value || null; });
     try {
       await api(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-      event.currentTarget.reset(); setNotice("Enregistrement effectué."); await load();
+      formElement.reset(); setNotice("Enregistrement effectué."); await load();
     } catch(cause) { setError(cause instanceof Error ? cause.message : "Enregistrement impossible."); }
   }
 
@@ -74,30 +75,33 @@ export function BusinessManager() {
 
   async function submitContract(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form=new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form=new FormData(formElement);
     const contractKind=form.get("contractKind");
     const partyId=form.get("partyId");
     const body:Record<string,unknown>={contractKind,contractNumber:form.get("contractNumber"),title:form.get("title"),amount:Number(form.get("amount"))||null,currency:form.get("currency"),startDate:form.get("startDate")||null,endDate:form.get("endDate")||null,renewalDate:form.get("renewalDate")||null,autoRenew:form.get("autoRenew")==="on",terms:form.get("terms")||null};
     if(contractKind==="client") body.customerId=partyId;
     if(contractKind==="supplier") body.supplierId=partyId;
     if(contractKind==="partner") body.partnerId=partyId;
-    try { await api("/api/v1/business/contracts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); event.currentTarget.reset();setNotice("Contrat créé.");setContracts((await api<{contracts:Contract[]}>("/api/v1/business/contracts")).contracts); }
+    try { await api("/api/v1/business/contracts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}); formElement.reset();setNotice("Contrat créé.");setContracts((await api<{contracts:Contract[]}>("/api/v1/business/contracts")).contracts); }
     catch(cause){setError(cause instanceof Error?cause.message:"Création du contrat impossible.");}
   }
 
   async function submitInvoice(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form=new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form=new FormData(formElement);
     const body={customerId:form.get("customerId"),contractId:form.get("contractId")||null,issueDate:form.get("issueDate"),dueDate:form.get("dueDate"),currency:form.get("currency"),discount:Number(form.get("discount")||0),taxAmount:Number(form.get("taxAmount")||0),notes:form.get("notes")||null,lines:[{description:form.get("description"),quantity:Number(form.get("quantity")),unitPrice:Number(form.get("unitPrice"))}]};
-    try { await api("/api/v1/business/invoices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});event.currentTarget.reset();setNotice("Facture émise.");setInvoices((await api<{invoices:Invoice[]}>("/api/v1/business/invoices")).invoices); }
+    try { await api("/api/v1/business/invoices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});formElement.reset();setNotice("Facture émise.");setInvoices((await api<{invoices:Invoice[]}>("/api/v1/business/invoices")).invoices); }
     catch(cause){setError(cause instanceof Error?cause.message:"Création de la facture impossible.");}
   }
 
   async function submitPayment(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form=new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form=new FormData(formElement);
     const body={invoiceId:form.get("invoiceId"),amount:Number(form.get("amount")),currency:form.get("currency"),fxRate:Number(form.get("fxRate")||1),method:form.get("method"),paidAt:form.get("paidAt"),reference:form.get("reference")||null};
-    try { await api("/api/v1/business/payments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});event.currentTarget.reset();setNotice("Encaissement enregistré et revenu relié.");setInvoices((await api<{invoices:Invoice[]}>("/api/v1/business/invoices")).invoices); }
+    try { await api("/api/v1/business/payments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});formElement.reset();setNotice("Encaissement enregistré et revenu relié.");setInvoices((await api<{invoices:Invoice[]}>("/api/v1/business/invoices")).invoices); }
     catch(cause){setError(cause instanceof Error?cause.message:"Encaissement impossible.");}
   }
 

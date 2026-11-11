@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { requestIp, withDbUser } from "@/lib/db";
 
 const customerSchema = z.object({
+  type: z.literal("customer"),
   kind: z.enum(["prospect","client"]),
   companyName: z.string().trim().max(160).nullable().optional(),
   fullName: z.string().trim().min(2).max(160),
@@ -14,6 +15,7 @@ const customerSchema = z.object({
 }).strict();
 
 const contactSchema = z.object({
+  type: z.literal("contact"),
   customerId: z.uuid(),
   fullName: z.string().trim().min(2).max(160),
   jobTitle: z.string().trim().max(160).nullable().optional(),
@@ -22,6 +24,7 @@ const contactSchema = z.object({
 }).strict();
 
 const interactionSchema = z.object({
+  type: z.literal("interaction"),
   customerId: z.uuid(),
   interactionType: z.enum(["call","meeting","email","message","visit","other"]),
   summary: z.string().trim().min(1).max(3000),
