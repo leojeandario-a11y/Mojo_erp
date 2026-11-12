@@ -9,18 +9,20 @@ import { hasAnyPermission, hasPermission } from "@/lib/permissions";
 import { BrandLogo } from "@/components/brand-logo";
 import { NotificationsMenu } from "@/components/notifications-menu";
 import { UserAvatar } from "@/components/user-avatar";
+import { isModuleIconName, ModuleIcon } from "@/components/module-icon";
 import { formatExchangeRate } from "@/lib/money.mjs";
 
 const modules = [
-  { key: "dashboard", href: "/dashboard", icon: "◫", permission: [] },
-  { key: "finance", href: "/modules/finance", icon: "◌", permission: ["finance.transaction.read", "finance.transaction.create", "finance.transaction.reverse", "finance.account.manage", "finance.rate.manage", "finance.budget.read", "finance.budget.manage"] },
-  { key: "hr", href: "/modules/hr", icon: "◉", permission: ["hr.employee.read", "hr.employee.manage", "hr.leave.request"] },
-  { key: "business", href: "/modules/business", icon: "⌁", permission: ["business.customer.read", "business.contract.read"] },
-  { key: "marketing", href: "/modules/marketing", icon: "◈", permission: ["marketing.campaign.read", "marketing.campaign.manage"] },
-  { key: "operations", href: "/modules/operations", icon: "⌘", permission: ["operations.project.read", "operations.project.manage", "operations.task.manage"] },
-  { key: "store", href: "/modules/store", icon: "▤", permission: ["store.product.read", "store.product.manage", "store.stock.manage", "store.pos.sell", "store.exhibitor.manage", "store.exhibitor.validate", "store.exhibitor.pay", "store.report.read", "store.finance.read", "store.pos.return", "store.pos.void", "store.pos.configure"] },
-  { key: "approvals", href: "/modules/approvals", icon: "✓", permission: ["approvals.approve", "finance.transaction.create", "finance.budget.manage"] },
-  { key: "reports", href: "/modules/reports", icon: "▥", permission: ["finance.report.read", "hr.report.read", "business.report.read", "marketing.report.read", "operations.report.read", "store.report.read"] },
+  { key: "dashboard", href: "/dashboard", icon: "dashboard", permission: [] },
+  { key: "collaboration", href: "/collaboration", icon: "collaboration", permission: [] },
+  { key: "finance", href: "/modules/finance", icon: "finance", permission: ["finance.transaction.read", "finance.transaction.create", "finance.transaction.reverse", "finance.account.manage", "finance.rate.manage", "finance.budget.read", "finance.budget.manage"] },
+  { key: "hr", href: "/modules/hr", icon: "hr", permission: ["hr.employee.read", "hr.employee.manage", "hr.leave.request"] },
+  { key: "business", href: "/modules/business", icon: "business", permission: ["business.customer.read", "business.contract.read"] },
+  { key: "marketing", href: "/modules/marketing", icon: "marketing", permission: ["marketing.campaign.read", "marketing.campaign.manage"] },
+  { key: "operations", href: "/modules/operations", icon: "operations", permission: ["operations.project.read", "operations.project.manage", "operations.task.manage"] },
+  { key: "store", href: "/modules/store", icon: "store", permission: ["store.product.read", "store.product.manage", "store.stock.manage", "store.pos.sell", "store.exhibitor.manage", "store.exhibitor.validate", "store.exhibitor.pay", "store.report.read", "store.finance.read", "store.pos.return", "store.pos.void", "store.pos.configure"] },
+  { key: "approvals", href: "/modules/approvals", icon: "approvals", permission: ["approvals.approve", "finance.transaction.create", "finance.budget.manage"] },
+  { key: "reports", href: "/modules/reports", icon: "reports", permission: ["finance.report.read", "hr.report.read", "business.report.read", "marketing.report.read", "operations.report.read", "store.report.read"] },
 ] as const;
 
 export function AppShell({ user, children }: { user: AuthUser; children: React.ReactNode }) {
@@ -131,7 +133,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
               <nav aria-label={text.dashboard}>
                 {visibleModules.map(({ key, href, icon }) => (
                   <Link key={key} href={href} className={`nav-link ${pathname === href ? "active" : ""}`}>
-                    <span className="nav-icon">{icon}</span>{translate(user.locale, key)}
+                    <ModuleIcon name={icon} />{translate(user.locale, key)}
                     {key === "dashboard" && <span className="nav-active-dot" />}
                   </Link>
                 ))}
@@ -148,7 +150,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
                 <div className="nav-sublist">
                   {visibleAdminLinks.map((item) => (
                     <Link key={item.key} href={item.href} className={`nav-link ${pathname.startsWith(item.href) ? "active" : ""}`}>
-                      <span className="nav-icon">{item.icon}</span>{item.label}
+                      {isModuleIconName(item.icon) ? <ModuleIcon name={item.icon} /> : <span className="nav-icon">{item.icon}</span>}{item.label}
                     </Link>
                   ))}
                 </div>
@@ -182,7 +184,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
               {searchQuery.trim() && <div id="page-search-results" className="quick-search-results" role="listbox" aria-label={text.search}>
                 {searchablePages.length ? searchablePages.map((item) => (
                   <Link key={item.href} href={item.href} role="option" aria-selected="false" onClick={() => setSearchQuery("")}>
-                    <span className="nav-icon">{item.icon}</span>{translate(user.locale, item.key)}
+                    {isModuleIconName(item.icon) ? <ModuleIcon name={item.icon} /> : <span className="nav-icon">{item.icon}</span>}{translate(user.locale, item.key)}
                   </Link>
                 )) : <span className="quick-search-empty">{text.noSearchResults}</span>}
               </div>}
@@ -214,6 +216,7 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
 }
 
 function pageTitle(pathname: string, locale: Locale): string {
+  if (pathname.startsWith("/collaboration")) return translate(locale, "collaboration");
   if (pathname.startsWith("/profile")) return translate(locale, "profile");
   if (pathname.startsWith("/settings/users")) return translate(locale, "users");
   if (pathname.startsWith("/settings/roles")) return translate(locale, "roles");

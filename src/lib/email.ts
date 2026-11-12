@@ -76,6 +76,43 @@ export function validatePasswordResetEmailConfig(): void {
   readSmtpConfig();
 }
 
+export function isApplicationEmailConfigured(): boolean {
+  try {
+    readSmtpConfig();
+    return true;
+  } catch (error) {
+    if (error instanceof EmailConfigurationError) return false;
+    throw error;
+  }
+}
+
+export async function sendApplicationNotificationEmail(
+  to: string,
+  fullName: string,
+  title: string,
+  body: string,
+  locale: "fr" | "ht" | "en",
+): Promise<void> {
+  const { transport, from } = createPasswordResetTransport();
+  const greeting = {
+    fr: `Bonjour ${fullName},`,
+    ht: `Bonjou ${fullName},`,
+    en: `Hello ${fullName},`,
+  }[locale];
+  const htmlBody = escapeHtml(body).replace(/\r?\n/g, "<br>");
+  try {
+    await transport.sendMail({
+      from,
+      to,
+      subject: title,
+      text: `${greeting}\n\n${title}\n\n${body}`,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#18312d"><p>${escapeHtml(greeting)}</p><h2>${escapeHtml(title)}</h2><p>${htmlBody}</p></div>`,
+    });
+  } finally {
+    transport.close();
+  }
+}
+
 export async function sendRegistrationOtpEmail(
   to: string,
   fullName: string,
