@@ -144,10 +144,10 @@ export function CollaborationManager({
 
   return (
     <section className="collaboration-shell">
-      <header className="page-heading">
+      <header className="page-heading dashboard-hero collaboration-hero">
         <div>
           <span className="eyebrow">MOJOPIKTURES · LOT 18</span>
-          <h1>{text("collaboration")}</h1>
+          <h1>{text("collaboration")}<span className="heading-period">.</span></h1>
           <p>{text("collaborationDescription")}</p>
         </div>
       </header>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Locale } from "@/lib/auth";
 import { translate } from "@/lib/i18n";
+import { CollaborationVideoRoom } from "@/components/collaboration-video-room";
 
 interface MeetingContact {
   id: string;
@@ -45,6 +46,8 @@ export function CollaborationMeetings({
   const [contacts, setContacts] = useState<MeetingContact[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [googleCalendarConfigured, setGoogleCalendarConfigured] = useState(false);
+  const [jitsiConfigured, setJitsiConfigured] = useState(false);
+  const [activeRoomMeetingId, setActiveRoomMeetingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [startsAt, setStartsAt] = useState("");
@@ -65,6 +68,7 @@ export function CollaborationMeetings({
       const meetingData = await meetingResponse.json() as {
         meetings: Meeting[];
         googleCalendarConfigured: boolean;
+        jitsiConfigured: boolean;
         error?: string;
       };
       const contactData = await contactResponse.json() as { users: MeetingContact[]; error?: string };
@@ -73,6 +77,7 @@ export function CollaborationMeetings({
       setMeetings(meetingData.meetings);
       setContacts(contactData.users);
       setGoogleCalendarConfigured(meetingData.googleCalendarConfigured);
+      setJitsiConfigured(meetingData.jitsiConfigured);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : text("requestFailed"));
@@ -162,8 +167,16 @@ export function CollaborationMeetings({
           <p>{text("meetingDescription")}</p>
         </div>
       </header>
-      <p className={googleCalendarConfigured ? "collaboration-note" : "collaboration-notice"} role="status">
-        {text(googleCalendarConfigured ? "meetingGoogleConfigured" : "meetingManualLinkRequired")}
+      <p className={googleCalendarConfigured || jitsiConfigured ? "collaboration-note" : "collaboration-notice"} role="status">
+        {text(
+          googleCalendarConfigured && jitsiConfigured
+            ? "meetingGoogleAndJitsiConfigured"
+            : jitsiConfigured
+              ? "meetingJitsiConfigured"
+              : googleCalendarConfigured
+                ? "meetingGoogleConfigured"
+                : "meetingManualLinkRequired",
+        )}
       </p>
       {error && <p className="form-error" role="alert">{error}</p>}
       {success && <p className="collaboration-success" role="status">{success}</p>}
@@ -183,7 +196,7 @@ export function CollaborationMeetings({
               {text("meetingEnd")}
               <input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} required />
             </label>
-            {!googleCalendarConfigured && (
+            {!googleCalendarConfigured && !jitsiConfigured && (
               <label>
                 {text("meetingMeetLink")}
                 <input type="url" value={meetUrl} onChange={(event) => setMeetUrl(event.target.value)}
@@ -227,11 +240,24 @@ export function CollaborationMeetings({
             </div>
             {meeting.description && <p className="collaboration-meeting-agenda">{meeting.description}</p>}
             <p className="collaboration-meeting-organizer">{text("meetingOrganizer")}: {meeting.organizer_name}</p>
+            {jitsiConfigured && meeting.status === "scheduled" && (
+              <button className="button button-primary collaboration-meet-link" type="button"
+                onClick={() => setActiveRoomMeetingId(meeting.id)}>
+                {text("meetingJoinEmbedded")}
+              </button>
+            )}
             {meeting.meet_url && meeting.status === "scheduled" && (
               <a className="button button-secondary collaboration-meet-link"
                 href={meeting.meet_url} target="_blank" rel="noreferrer">
                 {text("meetingJoin")}
               </a>
+            )}
+            {activeRoomMeetingId === meeting.id && (
+              <CollaborationVideoRoom
+                locale={locale}
+                meetingId={meeting.id}
+                onClose={() => setActiveRoomMeetingId(null)}
+              />
             )}
             <div className="collaboration-meeting-people">
               <strong>{text("meetingInvitees")}</strong>

@@ -199,6 +199,7 @@ h1, h2, h3, .brand-lockup strong, .metric-card > strong { font-family: Inter, ui
 .top-avatar .user-avatar { width: 100% !important; height: 100% !important; font-size: 10px; }
 .page-content { max-width: 1560px; margin: 0 auto; padding: 38px 4.1% 45px; }
 .collaboration-shell { display: grid; gap: 18px; }
+.collaboration-shell > .collaboration-hero { margin-bottom: 0; }
 .collaboration-tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line); }
 .collaboration-tab { padding: 10px 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
 .collaboration-tab.is-active { border-bottom-color: var(--brand-orange); color: var(--ink-strong); }
@@ -244,6 +245,12 @@ h1, h2, h3, .brand-lockup strong, .metric-card > strong { font-family: Inter, ui
 .collaboration-meeting-people li { display: flex; gap: 7px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; color: #52635c; }
 .collaboration-meeting-people small { color: var(--muted); }
 .collaboration-meeting-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.collaboration-video-room { display: grid; min-width: 0; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: #f7f9f7; }
+.collaboration-video-room-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.collaboration-video-room-heading h4 { margin: 0; color: var(--ink-strong); font-size: 13px; }
+.collaboration-video-room-heading p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+.collaboration-video-room-frame { width: 100%; min-width: 0; height: min(72vh, 720px); min-height: 360px; overflow: hidden; border-radius: 7px; background: #18221e; }
+.collaboration-video-room-frame iframe { width: 100%; height: 100%; border: 0; }
 .collaboration-chat-tools { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: start; gap: 12px; }
 .collaboration-chat-start { display: flex; align-items: end; gap: 9px; padding: 13px; }
 .collaboration-chat-start label, .collaboration-chat-group label { display: grid; flex: 1; min-width: 0; gap: 6px; color: #52635c; font-size: 11px; font-weight: 650; }
@@ -599,6 +606,8 @@ td strong { color: #344a42; font-size: 10px; font-weight: 600; }
   .collaboration-chat-rooms { max-height: 220px; overflow: auto; }
   .login-screen { grid-template-columns: 1fr;     .collaboration-chat-start, .collaboration-chat-compose { align-items: stretch; flex-direction: column; }
     .collaboration-meeting-heading { align-items: flex-start; flex-direction: column; }
+    .collaboration-video-room-heading { align-items: flex-start; flex-direction: column; }
+    .collaboration-video-room-frame { height: 62vh; min-height: 320px; }
   }
   .users-admin-layout { grid-template-columns: 1fr; }
   .users-admin-sidebar { grid-template-columns: 1fr; }

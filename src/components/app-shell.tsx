@@ -131,12 +131,15 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
             </button>
             {modulesExpanded ? (
               <nav aria-label={text.dashboard}>
-                {visibleModules.map(({ key, href, icon }) => (
-                  <Link key={key} href={href} className={`nav-link ${pathname === href ? "active" : ""}`}>
-                    <ModuleIcon name={icon} />{translate(user.locale, key)}
-                    {key === "dashboard" && <span className="nav-active-dot" />}
-                  </Link>
-                ))}
+                {visibleModules.map(({ key, href, icon }) => {
+                  const isActive = pathname === href || pathname.startsWith(`${href}/`);
+                  return (
+                    <Link key={key} href={href} className={`nav-link ${isActive ? "active" : ""}`}>
+                      <ModuleIcon name={icon} />{translate(user.locale, key)}
+                      {isActive && <span className="nav-active-dot" aria-hidden="true" />}
+                    </Link>
+                  );
+                })}
               </nav>
             ) : null}
           </div>
